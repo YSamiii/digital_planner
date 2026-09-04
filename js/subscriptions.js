@@ -102,17 +102,21 @@
       } else {
         state.subscriptions.push({ id: uid(), ...data, createdAt: Date.now() });
       }
-      save();
+      const result = save();
+      if (!result?.ok) return result;
       closeSubscriptionEditor();
       render();
+      return result;
     }
 
     function deleteSubscription(id) {
       const state = getState();
       if (!confirm('确定删除这个 Subscription 吗？')) return;
       state.subscriptions = state.subscriptions.filter((item) => item.id !== id);
-      save();
+      const result = save();
+      if (!result?.ok) return result;
       render();
+      return result;
     }
 
     function addSubscriptionToCalendar(id) {

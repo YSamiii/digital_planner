@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='0.22.0-recovery-preview-classification-fix-qa';
-document.documentElement.dataset.runtimeBuild='0.22.0-recovery-preview-classification-fix-qa';
+window.JOURNAL_BUILD='0.22.0-data-safety-p0-qa';
+document.documentElement.dataset.runtimeBuild='0.22.0-data-safety-p0-qa';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.22.0';
-const BUILD_LABEL='Recovery Preview Classification Fix QA';
+const BUILD_LABEL='Data Safety P0 QA';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 function defaultState(){return {schemaVersion:12,entries:[],months:{},weeks:{},long:{},projects:{},customBlocks:[],dailyBlocks:{},dailyBlockMeta:{},legacyJournalRecords:[],legacyImportTombstones:{},fiveYearQuestions:[],favorites:[],customTemplates:[],challenges:[],noSpendChallenges:[],twelveWeekYears:[],subscriptions:[],wishlists:[],inventory:{items:[],categories:[],locations:[]},orders:{items:[],sellers:[],pickupLocations:[],recurring:[],forwardingBatches:[]},settings:{theme:'sage',todayDashboard:{cards:Array.from({length:8},(_,id)=>({id,visible:true,order:id,hideWhenEmpty:false}))}}}}
@@ -102,6 +102,19 @@ return state;
 const loadResult=window.PersistenceFoundation?.loadCanonicalState({storage:localStorage,key:KEY,legacyKeys:LEGACY_KEYS,defaultState,hydrateState:hydrateAppState})||{state:defaultState(),status:'load_failure',source:'foundation_unavailable',error:{name:'PersistenceFoundationError',message:'Persistence foundation did not load.'},canonicalRawPresent:null,canonicalRawLength:null};
 let persistenceSafeMode=loadResult.status==='load_failure';
 let state=loadResult.state;
+let lastVerifiedCanonicalRaw='';
+try{lastVerifiedCanonicalRaw=loadResult.status==='loaded'?(localStorage.getItem(KEY)||''):JSON.stringify(state);}catch(_){lastVerifiedCanonicalRaw=JSON.stringify(state);}
+function restoreLastVerifiedCanonicalAfterFailedSave(){
+  let actual='';try{actual=localStorage.getItem(KEY)||'';}catch(_){}
+  if(actual!==lastVerifiedCanonicalRaw){
+    persistenceSafeMode=true;renderPersistenceSafeModeWarning();
+    return {restored:false,reason:'persisted canonical changed or cannot be read after failed commit'};
+  }
+  try{state=hydrateAppState(JSON.parse(lastVerifiedCanonicalRaw));return {restored:true};}
+  catch(_){persistenceSafeMode=true;renderPersistenceSafeModeWarning();return {restored:false,reason:'last verified canonical could not be rehydrated'};}
+}
+window.getLastVerifiedCanonicalRaw=()=>lastVerifiedCanonicalRaw;
+window.__canonicalSaveFailurePending=null;
 window.persistenceLoadStatus=()=>({...loadResult,status:persistenceSafeMode?'load_failure':loadResult.status,state:undefined});
 window.isPersistenceSafeMode=()=>persistenceSafeMode;
 window.canWriteCanonicalState=()=>!persistenceSafeMode;
@@ -521,14 +534,15 @@ function sectionHTML(sec,data){
 function iso(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 function save(){
   let payload='';
-  const fail=(stage,error)=>{const result={ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false};window.lastPersistenceResult=result;ordersPersistenceDiagnostics?.recordFailure(stage,error);console.warn('save failed',stage,error);if(stage==='localStorage.setItem'||stage==='read-back'){alert(result.errorName==='QuotaExceededError'?'保存失败，本机存储空间不足。当前修改尚未安全保存。':'保存失败，当前修改尚未安全保存。');}return result;};
-  if(persistenceSafeMode){const result={ok:false,stage:'persistence_safe_mode',errorName:'PersistenceSafeModeError',message:'数据暂时无法读取。为保护现有记录，App 已暂停保存。',persisted:false};window.lastPersistenceResult=result;renderPersistenceSafeModeWarning();return result;}
+  const fail=(stage,error)=>{const rollback=restoreLastVerifiedCanonicalAfterFailedSave(),result={ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false,rollback};window.lastPersistenceResult=result;window.__canonicalSaveFailurePending=result;ordersPersistenceDiagnostics?.recordFailure(stage,error);console.warn('save failed',stage,error);alert(result.errorName==='QuotaExceededError'?'保存失败，本机存储空间不足。当前修改尚未安全保存。':'保存失败，当前修改尚未安全保存。');return result;};
+  if(persistenceSafeMode){const result={ok:false,stage:'persistence_safe_mode',errorName:'PersistenceSafeModeError',message:'数据暂时无法读取。为保护现有记录，App 已暂停保存。',persisted:false};window.lastPersistenceResult=result;window.__canonicalSaveFailurePending=result;renderPersistenceSafeModeWarning();return result;}
   try{payload=JSON.stringify(state);ordersPersistenceDiagnostics?.recordStringify(payload);}
   catch(error){return fail('JSON.stringify',error)}
-  try{ordersPersistenceDiagnostics?.recordSetAttempt(payload);localStorage.setItem(KEY,payload);ordersPersistenceDiagnostics?.recordSetSuccess(payload);}
-  catch(error){return fail('localStorage.setItem',error)}
-  try{const readBack=localStorage.getItem(KEY);if(readBack!==payload)throw new Error('持久化 read-back 校验失败');const result={ok:true,stage:'read-back',persisted:true,payloadBytes:new Blob([payload]).size};window.lastPersistenceResult=result;return result;}
-  catch(error){return fail('read-back',error)}
+  const commit=window.PersistenceFoundation?.commitCanonical;
+  if(typeof commit!=='function')return fail('quota_safe_commit_unavailable',new Error('统一安全保存路径不可用'));
+  const result=commit({storage:localStorage,key:KEY,payload,onAttempt:()=>ordersPersistenceDiagnostics?.recordSetAttempt(payload),onSuccess:()=>ordersPersistenceDiagnostics?.recordSetSuccess(payload),verifyReadBack:raw=>{const persisted=JSON.parse(raw);if(!persisted||typeof persisted!=='object'||Array.isArray(persisted))throw new Error('canonical read-back root 无效');if(Number(persisted.schemaVersion)!==12)throw new Error('canonical read-back schemaVersion 无效');return {schemaVersion:persisted.schemaVersion};}});
+  if(!result.ok)return fail(result.stage,{name:result.errorName,message:result.message});
+  lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;return result;
 }
 function renderAppVersion(){for(const el of document.querySelectorAll('[data-app-version]'))el.textContent=`v${APP_VERSION}`;for(const el of document.querySelectorAll('[data-build-label]'))el.textContent=BUILD_LABEL;}
 const inventoryEditDiagnostics=(()=>{
@@ -785,7 +799,7 @@ async function exportData(){
 }
 function importData(ev){
   const f=ev.target.files[0];if(!f)return;const r=new FileReader();
-  r.onload=async()=>{try{const d=JSON.parse(r.result),candidate=d.state||d;if(!candidate||typeof candidate!=='object')throw new Error('invalid state');candidate.settings=candidate.settings||{theme:'sage'};candidate.inventory=candidate.inventory&&typeof candidate.inventory==='object'?candidate.inventory:{items:[],categories:[],locations:[]};candidate.inventory.items=Array.isArray(candidate.inventory.items)?candidate.inventory.items:[];candidate.inventory.categories=Array.isArray(candidate.inventory.categories)?candidate.inventory.categories:[];candidate.inventory.locations=Array.isArray(candidate.inventory.locations)?candidate.inventory.locations:[];candidate.orders=candidate.orders&&typeof candidate.orders==='object'?candidate.orders:{items:[],sellers:[],pickupLocations:[],recurring:[],forwardingBatches:[]};['items','sellers','pickupLocations','recurring','forwardingBatches'].forEach(k=>candidate.orders[k]=Array.isArray(candidate.orders[k])?candidate.orders[k]:[]);await mediaStore.restoreFromBackup(d.media||[]);state=candidate;state.schemaVersion=12;save();applyTheme(state.settings.theme);renderAll();alert('导入完成')}catch(e){alert('备份文件无效或媒体恢复失败')}};
+  r.onload=async()=>{try{const d=JSON.parse(r.result),candidate=d.state||d;if(!candidate||typeof candidate!=='object')throw new Error('invalid state');candidate.settings=candidate.settings||{theme:'sage'};candidate.inventory=candidate.inventory&&typeof candidate.inventory==='object'?candidate.inventory:{items:[],categories:[],locations:[]};candidate.inventory.items=Array.isArray(candidate.inventory.items)?candidate.inventory.items:[];candidate.inventory.categories=Array.isArray(candidate.inventory.categories)?candidate.inventory.categories:[];candidate.inventory.locations=Array.isArray(candidate.inventory.locations)?candidate.inventory.locations:[];candidate.orders=candidate.orders&&typeof candidate.orders==='object'?candidate.orders:{items:[],sellers:[],pickupLocations:[],recurring:[],forwardingBatches:[]};['items','sellers','pickupLocations','recurring','forwardingBatches'].forEach(k=>candidate.orders[k]=Array.isArray(candidate.orders[k])?candidate.orders[k]:[]);await mediaStore.restoreFromBackup(d.media||[]);state=candidate;state.schemaVersion=12;const result=save();if(!result?.ok)return result;applyTheme(state.settings.theme);renderAll();alert('导入完成');return result}catch(e){alert('备份文件无效或媒体恢复失败')}};
   r.readAsText(f)
 }
 let oneLineImportDraft=null;
@@ -810,7 +824,8 @@ function commitOneLineImport(){
     const policy=qs('#oneLineConflictPolicy').value;
     const staged=oneLineImport.stage(state,oneLineImportDraft.validated,policy);
     state.dailyBlocks=staged.next.dailyBlocks;state.customBlocks=staged.next.customBlocks;state.importProvenance=staged.next.importProvenance;
-    save();renderAll();modalController.close('oneLineImportModal');oneLineImportDraft=null;
+    const result=save();if(!result?.ok)return result;
+    renderAll();modalController.close('oneLineImportModal');oneLineImportDraft=null;
     alert(`导入完成：\n${staged.result.importedDays} days\n${staged.result.importedBlocks} blocks\n跳过重复：${staged.result.skippedDuplicates}\n冲突：${staged.result.conflicts}\n错误：${staged.result.errors}`);
   }catch(error){alert(`导入失败，未修改当前数据：${error.message||error}`)}
 }
@@ -825,11 +840,12 @@ const modalController=(()=>{
   function setActive(el,active){if(!el)return;el.setAttribute('aria-hidden',active?'false':'true');if('inert' in el)el.inert=!active;}
   function focusModal(el){requestAnimationFrame(()=>{const target=el?.querySelector('[autofocus], .modal-close, input, select, textarea, button');target?.focus?.({preventScroll:true});});}
   function open(id){const el=qs('#'+id);if(!el)return;el.classList.remove('suspended');el.classList.add('open');const body=el.querySelector('.modal-body');if(body)body.scrollTop=0;setActive(el,true);syncLock();focusModal(el)}
-  function close(id){const el=qs('#'+id);if(!el)return;el.classList.remove('open','suspended');setActive(el,false);suspended.delete(id);for(let i=stack.length-1;i>=0;i--)if(stack[i].parentId===id||stack[i].childId===id)stack.splice(i,1);syncLock()}
+  function blockFailedSaveClose(id){const failure=window.__canonicalSaveFailurePending;if(!failure)return false;window.__canonicalSaveFailurePending=null;const body=qs('#'+id)?.querySelector('.modal-body');if(body)body.insertAdjacentHTML('afterbegin',`<p class="notice error"><b>保存失败，输入仍保留在此编辑窗口。</b><br>${esc(failure.message||'请在空间恢复后再次保存。')}</p>`);return true;}
+  function close(id){if(blockFailedSaveClose(id))return null;const el=qs('#'+id);if(!el)return;el.classList.remove('open','suspended');setActive(el,false);suspended.delete(id);for(let i=stack.length-1;i>=0;i--)if(stack[i].parentId===id||stack[i].childId===id)stack.splice(i,1);syncLock()}
   function suspend(id,context={}){const el=qs('#'+id);if(!el||!el.classList.contains('open'))return null;const body=el.querySelector('.modal-body');const snapshot={modalId:id,scrollTop:body?.scrollTop||0,context};suspended.set(id,snapshot);el.classList.remove('open');el.classList.add('suspended');setActive(el,false);syncLock();return snapshot;}
   function resume(id){const el=qs('#'+id),snapshot=suspended.get(id);if(!el)return null;el.classList.remove('suspended');el.classList.add('open');setActive(el,true);const body=el.querySelector('.modal-body');if(body&&snapshot)body.scrollTop=snapshot.scrollTop||0;suspended.delete(id);syncLock();focusModal(el);return snapshot?.context||null;}
   function push(parentId,childId,context={}){if(!isOpen(parentId)){open(childId);return null;}const parent=suspend(parentId,context);const entry={parentId,childId,context,returnFocus:document.activeElement instanceof HTMLElement?document.activeElement:null};stack.push(entry);open(childId);return entry;}
-  function pop(childId){const at=stack.map(x=>x.childId).lastIndexOf(childId);if(at<0){close(childId);return null;}const entry=stack.splice(at,1)[0];const child=qs('#'+childId);if(child){child.classList.remove('open','suspended');setActive(child,false);suspended.delete(childId);}const context=resume(entry.parentId);if(entry.returnFocus?.isConnected)requestAnimationFrame(()=>entry.returnFocus.focus({preventScroll:true}));return context||entry.context;}
+  function pop(childId){if(blockFailedSaveClose(childId))return null;const at=stack.map(x=>x.childId).lastIndexOf(childId);if(at<0){close(childId);return null;}const entry=stack.splice(at,1)[0];const child=qs('#'+childId);if(child){child.classList.remove('open','suspended');setActive(child,false);suspended.delete(childId);}const context=resume(entry.parentId);if(entry.returnFocus?.isConnected)requestAnimationFrame(()=>entry.returnFocus.focus({preventScroll:true}));return context||entry.context;}
   function isOpen(id){return !!qs('#'+id)?.classList.contains('open')}
   function activeCount(){return qsa('.modal.open').length}
   return{open,close,suspend,resume,push,pop,isOpen,activeCount};
@@ -1233,7 +1249,7 @@ function dailyQuestionPromptForDate(date){const existing=state.legacyJournalReco
 function syncDailyQuestionText(){const selected=qs('#dailyQuestionSelect').value,question=questionLibrary().find(item=>item.id===selected),custom=selected==='__custom__';qs('#dailyQuestionCustomWrap').hidden=!custom;qs('#dailyQuestionPrompt').hidden=custom;qs('#dailyQuestionPrompt').textContent=custom?'':(question?.text||'今天没有预设问题');}
 function openDailyQuestion(date=iso(new Date())){dailyQuestionEditId='';qs('#dailyQuestionDate').value=date;const questions=questionLibrary(),existing=state.legacyJournalRecords.find(record=>record.recordType==='five_year_question'&&record.date===date),mapped=dailyQuestionForDate(date);qs('#dailyQuestionSelect').innerHTML=questions.map(question=>`<option value="${esc(question.id)}">${esc(question.text)}</option>`).join('')+'<option value="__custom__">自定义问题…</option>';if(existing){dailyQuestionEditId=existing.id;qs('#dailyQuestionAnswer').value=existing.answer||existing.content||'';qs('#dailyQuestionSelect').value=existing.questionId&&questions.some(question=>question.id===existing.questionId)?existing.questionId:'__custom__';qs('#dailyQuestionText').value=qs('#dailyQuestionSelect').value==='__custom__'?(existing.question||existing.title||''):'';}else{qs('#dailyQuestionSelect').value=mapped?.id||'__custom__';qs('#dailyQuestionText').value='';qs('#dailyQuestionAnswer').value='';}syncDailyQuestionText();qs('#dailyQuestionDeleteButton').hidden=!dailyQuestionEditId;modalController.open('dailyQuestionModal');}
 function renderFiveYearJournal(){const date=qs('#fiveYearDate');if(!date)return;date.value=fiveYearViewDate;const [,month,day]=fiveYearViewDate.split('-').map(Number),rows=fiveYearJournal.recordsForSlot(fiveYearRecords(),month,day),todayRecord=state.legacyJournalRecords.find(record=>record.recordType==='five_year_question'&&record.date===fiveYearViewDate),prompt=qs('#fiveYearPrompt'),mapped=dailyQuestionForDate(fiveYearViewDate);if(prompt)prompt.innerHTML=todayRecord?`<button class="full-btn" onclick="openFiveYearRecordEditor('${todayRecord.id}')"><b>今日一问已回答</b><span>${esc(todayRecord.question||todayRecord.title)}</span></button>`:`<div><b>今日一问</b><p>${esc(mapped?.text||'今天没有预设问题')}</p><button class="btn primary" onclick="openDailyQuestion('${fiveYearViewDate}')">${mapped?'回答':'自定义一个问题'}</button></div>`;qs('#fiveYearList').innerHTML=rows.length?rows.map(record=>`<article class="entry five-year-record" onclick="openFiveYearRecordEditor('${record.id}')"><div class="meta">${esc(record.date)}</div><b>问题</b><p>${esc(record.question||record.title)}</p><b>回答</b><p>${esc(record.answer||record.content)}</p></article>`).join(''):'<div class="entry"><span class="small">这一天还没有其他年份的记录。</span></div>';}
-window.addEventListener('dailyQuestionSourceReady',()=>{const changed=applyDailyQuestionCalendarMigration();save();renderFiveYearJournal();renderTodayHub();if(changed)journalRefresh();});
+window.addEventListener('dailyQuestionSourceReady',()=>{const changed=applyDailyQuestionCalendarMigration();if(changed){const result=save();if(!result?.ok)return result;}renderFiveYearJournal();renderTodayHub();if(changed)journalRefresh();});
 
 /* v0.22 one-pack recovery import.  The package is staged entirely in memory.
    No media store, snapshot, migration, or canonical write is touched before
@@ -1276,22 +1292,30 @@ async function prepareRecoveryAllDataImport(event){
   }catch(error){recoveryAllDataDraft=null;alert(`未导入：${error.message||error}`);}
 }
 function closeRecoveryAllDataImport(){recoveryAllDataDraft=null;modalController.close('recoveryAllDataModal');}
+function recoverySaveFailure(result){
+  const preview=qs('#recoveryAllDataPreview');
+  if(preview)preview.insertAdjacentHTML('beforeend',`<p class="notice error"><b>RECOVERY SAVE FAILED — NO VERIFIED COMMIT</b><br>${recoveryEsc(result?.message||'保存失败，恢复候选仍保留在当前窗口。')}</p>`);
+}
 function commitRecoveryAllDataImport(){
   const draft=recoveryAllDataDraft;if(!draft)return;
-  const original=state;let committed=false;
+  const original=state;
   try{
-    state=draft.staged.next;
-    const result=save();
-    if(result?.ok===false){state=original;alert(`恢复未写入：${result.message||'保存失败，原数据未被清除。'}`);return;}
-    committed=true;
+    const payload=JSON.stringify(draft.staged.next);
+    const commit=window.PersistenceFoundation?.commitCanonical;
+    if(typeof commit!=='function')throw new Error('统一 quota-safe canonical commit 不可用。');
+    const result=commit({storage:localStorage,key:KEY,payload});
+    if(result?.ok===false){draft.lastCommitFailure=result;recoverySaveFailure(result);return;}
     const raw=localStorage.getItem(KEY);if(!raw)throw new Error('canonical read-back 不存在。');
     const persisted=JSON.parse(raw);
-    if(recoveryImportEngine.stable(persisted)!==recoveryImportEngine.stable(state))throw new Error('canonical read-back 与已验证恢复候选不一致。');
+    if(recoveryImportEngine.stable(persisted)!==recoveryImportEngine.stable(draft.staged.next))throw new Error('canonical read-back 与已验证恢复候选不一致。');
     const verification=recoveryImportEngine.stage(original,draft.pkg);
-    if(recoveryImportEngine.stable(verification.next)!==recoveryImportEngine.stable(state))throw new Error('恢复后验证不一致。');
+    if(recoveryImportEngine.stable(verification.next)!==recoveryImportEngine.stable(persisted))throw new Error('恢复后验证不一致。');
+    const health=window.PersistenceHealth?.fingerprint?.(persisted);
+    if(!health||health.schemaVersion!==12||health.counts.orders!==draft.staged.finalCounts.orders||health.counts.batches!==draft.staged.finalCounts.batches)throw new Error('恢复后健康校验不一致。');
+    state=persisted;
     renderAll();closeRecoveryAllDataImport();
     alert(`恢复完成\n新增 ${draft.staged.summary.inserted} · 保留 ${draft.staged.summary.preserved} · 跳过 ${draft.staged.summary.skipped} · 批准替换 ${draft.staged.summary.replaced}`);
-  }catch(error){if(!committed)state=original;alert(committed?`恢复已写入，但后续验证失败：${error.message||error}`:`恢复未完成：${error.message||error}`);}
+  }catch(error){state=original;recoverySaveFailure({message:error?.message||error});}
 }
 Object.assign(window,{openRecoveryAllDataImport,prepareRecoveryAllDataImport,closeRecoveryAllDataImport,commitRecoveryAllDataImport,recoveryAllDataImportTestHook:()=>({draft:recoveryAllDataDraft,engine:recoveryImportEngine})});
 

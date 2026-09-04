@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-build="0.22.0-nospend-readonly-diagnostic-qa">
+<html lang="zh-CN" data-build="0.22.0-data-safety-p0-qa">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
@@ -8,7 +8,7 @@
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./icon.svg">
 <title>我的手帐</title>
-<link rel="stylesheet" href="./styles.css?v=0220nospendreadonlydiagnosticr2qa">
+<link rel="stylesheet" href="./styles.css?v=0220datasafetyp0qa">
 </head>
 <body data-theme="sage">
 <div id="bootError" style="display:none;position:sticky;top:0;z-index:9999;background:#fff1f1;color:#8b3030;border-bottom:1px solid #e9bcbc;padding:10px 14px;font:12px -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif">
@@ -169,7 +169,6 @@
     <details class="admin-diagnostics"><summary>Admin / Diagnostic Mode — State Size Audit</summary><p id="stateSizeAuditSummary" class="small" aria-live="polite">State size audit: 未运行（只读）</p><div class="backup-actions"><button class="btn secondary" onclick="runStateSizeAudit()">运行审计</button><button class="btn primary" onclick="exportStateSizeAudit()">导出 JSON</button></div><p class="small">只测量 runtime 与已落盘 state 的大小和结构；不会删除、清理、迁移或保存任何数据。</p></details>
     <details class="admin-diagnostics"><summary>Admin / Diagnostic Mode — Storage Snapshot Verification</summary><p class="small">用于验证自动快照 payload 是否仅保存在 IndexedDB。不会恢复或覆盖当前数据。</p><div class="backup-actions"><button class="btn secondary" onclick="createDiagnosticTestSnapshot()">Create Test Snapshot</button><button class="btn secondary" onclick="verifyExistingDiagnosticTestSnapshot()">Verify Existing Test Snapshot</button><button class="btn secondary" onclick="deleteDiagnosticTestSnapshot()">Delete Test Snapshot</button><button class="btn primary" onclick="exportSnapshotVerification()">Export Verification JSON</button></div><pre id="snapshotVerificationSummary" class="small" aria-live="polite">尚未运行 Snapshot Verification。</pre><p class="small">验证 reload：创建后完全退出 App，重开后回到这里点击 Verify Existing Test Snapshot。删除只会处理本次诊断创建、且 reason=diagnostic_test 的快照。</p></details>
     <input id="importFile" type="file" accept="application/json" hidden onchange="importData(event)">
-    <input id="recoveryAllDataFile" type="file" accept="application/json,.json" hidden onchange="prepareRecoveryAllDataImport(event)">
     <input id="oneLineImportFile" type="file" accept="application/json,.json" hidden onchange="prepareOneLineImport(event)"><input id="legacyFiveYearFile" type="file" accept="application/json,.json" hidden onchange="prepareLegacyFiveYearImport(event)">
   </div>
   <div class="section box"><h3>桌面 Icon</h3><p class="small">这一版已把桌面 icon 改成更可爱的手帐本风格。App 内主题可以自由切换，不影响任何记录数据。</p></div>
@@ -345,16 +344,14 @@
 <script src="./js/one-line-import.js?v=0220recoverypreviewclassificationfixqa"></script><script src="./js/five-year-journal.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/timeline-filter.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/daily-question-calendar.js?v=0220recoverypreviewclassificationfixqa"></script>
-<script src="./js/persistence-foundation.js?v=fail-safe-persistence-foundation"></script>
-<script src="./js/recovery-import.js?v=0220recoverypreviewclassificationfixqa"></script>
-<script src="./js/app.js?v=0220recoverypreviewclassificationfixqa"></script>
-<script src="./js/persistence-health.js?v=p0-snapshot-health-gate"></script>
+<script src="./js/persistence-foundation.js?v=0220datasafetyp0qa"></script>
+<script src="./js/app.js?v=0220datasafetyp0qa"></script>
+<script src="./js/persistence-health.js?v=0220datasafetyp0qa"></script>
 <script src="./js/v0200-dashboard-forwarding-backup.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/v0210-backup-plan.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/v0220-nospend-readonly-diagnostic.js?v=0220recoverypreviewclassificationfixqa"></script>
-<script src="./js/v0220-one-click-recovery-import-build.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/v0220-data-safety-build.js?v=0220datasafetyp0qa"></script>
 <div id="growthExportModal" class="modal" onclick="if(event.target===this)closeGrowthExport()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">GROWTH EXPORT</div><h2>导出成长日记</h2></div><button class="modal-close" onclick="closeGrowthExport()">×</button></header><div class="modal-body"><label>时间范围</label><select id="growthExportRange" onchange="updateGrowthExportRange()"><option value="thisWeek">本周</option><option value="lastWeek">上周</option><option value="thisMonth">本月</option><option value="lastMonth">上月</option><option value="custom">自定义日期范围</option></select><div id="growthExportCustom" class="form-grid" hidden><div class="form-field"><label>开始日期</label><div class="date-field"><input id="growthExportStart" type="date" onchange="previewGrowthExport()"></div></div><div class="form-field"><label>结束日期</label><div class="date-field"><input id="growthExportEnd" type="date" onchange="previewGrowthExport()"></div></div></div><p id="growthExportPreview" class="section-note"></p><p class="small">包含今日成长摘要、详细记录、标签与来源类型；不导出二进制附件。</p></div><footer class="modal-footer"><button class="btn secondary" onclick="copyGrowthExport()">复制为文本</button><button class="btn secondary" onclick="downloadGrowthExport('md')">导出 Markdown</button><button class="btn primary" onclick="downloadGrowthExport('json')">导出 JSON</button></footer></section></div>
-<div id="recoveryAllDataModal" class="modal" onclick="if(event.target===this)closeRecoveryAllDataImport()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">RECOVERY IMPORT</div><h2>恢复数据导入</h2></div><button class="modal-close" type="button" onclick="closeRecoveryAllDataImport()">×</button></header><div class="modal-body"><p class="section-note">导入前已发起下载当前本机数据备份。恢复包只合并文字与结构化数据，不恢复任何图片、视频或 Live Photo。</p><div id="recoveryAllDataPreview" class="import-preview"></div></div><footer class="modal-footer"><button class="btn secondary" type="button" onclick="closeRecoveryAllDataImport()">取消</button><button class="btn primary" id="recoveryAllDataConfirm" type="button" onclick="commitRecoveryAllDataImport()" disabled>导入全部恢复数据</button></footer></section></div>
 </body>
 </html>
 

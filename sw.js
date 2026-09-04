@@ -1,43 +1,5 @@
-const CACHE='journal-planner-static-v0220-recovery-preview-classification-fix-qa';
-const STATIC=['./manifest.webmanifest','./styles.css?v=0220recoverypreviewclassificationfixqa','./js/media-store.js?v=0220recoverypreviewclassificationfixqa','./js/recurrence.js?v=0220recoverypreviewclassificationfixqa','./js/inventory.js?v=0220recoverypreviewclassificationfixqa','./js/sellers.js?v=0220recoverypreviewclassificationfixqa','./js/orders.js?v=0220recoverypreviewclassificationfixqa','./js/productivity.js?v=0220recoverypreviewclassificationfixqa','./js/challenges.js?v=0220recoverypreviewclassificationfixqa','./js/collections.js?v=0220recoverypreviewclassificationfixqa','./js/subscriptions.js?v=0220recoverypreviewclassificationfixqa','./js/today-dashboard.js?v=0220recoverypreviewclassificationfixqa','./js/one-line-import.js?v=0220recoverypreviewclassificationfixqa','./js/five-year-journal.js?v=0220recoverypreviewclassificationfixqa','./js/timeline-filter.js?v=0220recoverypreviewclassificationfixqa','./js/daily-question-calendar.js?v=0220recoverypreviewclassificationfixqa','./js/persistence-foundation.js?v=fail-safe-persistence-foundation','./js/recovery-import.js?v=0220recoverypreviewclassificationfixqa','./js/app.js?v=0220recoverypreviewclassificationfixqa','./js/v0220-nospend-readonly-diagnostic.js?v=0220recoverypreviewclassificationfixqa','./js/v0200-dashboard-forwarding-backup.js?v=0220recoverypreviewclassificationfixqa','./js/v0210-backup-plan.js?v=0220recoverypreviewclassificationfixqa','./js/v0220-one-click-recovery-import-build.js?v=0220recoverypreviewclassificationfixqa','./data/daily-question-calendar.json?v=0220recoverypreviewclassificationfixqa','./icon.svg'];
-
-STATIC.push('./js/persistence-health.js?v=p0-snapshot-health-gate');
-
-self.addEventListener('install',event=>{
-  self.skipWaiting();
-  event.waitUntil(caches.open(CACHE).then(c=>Promise.allSettled(STATIC.map(u=>c.add(u)))));
-});
-
-self.addEventListener('activate',event=>{
-  event.waitUntil((async()=>{
-    const keys=await caches.keys();
-    await Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)));
-    await self.clients.claim();
-  })());
-});
-
-self.addEventListener('fetch',event=>{
-  const req=event.request;
-  if(req.method!=='GET') return;
-  const url=new URL(req.url);
-
-  // HTML/navigation is always network-first and is NOT placed in Cache Storage.
-  if(req.mode==='navigate' || url.pathname.endsWith('/index.html') || url.pathname.endsWith('/')){
-    event.respondWith(fetch(req).catch(()=>new Response(
-      '<!doctype html><meta charset="utf-8"><title>Offline</title><p>当前离线，请联网后重新打开手帐。</p>',
-      {headers:{'Content-Type':'text/html; charset=utf-8'}}
-    )));
-    return;
-  }
-
-  if(url.origin===self.location.origin){
-    event.respondWith(caches.match(req).then(hit=>hit||fetch(req).then(res=>{
-      if(res.ok && (url.pathname.endsWith('.svg') || url.pathname.endsWith('.webmanifest'))){
-        const copy=res.clone(); caches.open(CACHE).then(c=>c.put(req,copy));
-      }
-      return res;
-    })));
-  }
-});
-
-
+const CACHE='journal-planner-static-v0220-data-safety-p0-qa';
+const STATIC=['./manifest.webmanifest','./styles.css?v=0220datasafetyp0qa','./js/media-store.js?v=0220datasafetyp0qa','./js/recurrence.js?v=0220datasafetyp0qa','./js/inventory.js?v=0220datasafetyp0qa','./js/sellers.js?v=0220datasafetyp0qa','./js/orders.js?v=0220datasafetyp0qa','./js/productivity.js?v=0220datasafetyp0qa','./js/challenges.js?v=0220datasafetyp0qa','./js/collections.js?v=0220datasafetyp0qa','./js/subscriptions.js?v=0220datasafetyp0qa','./js/today-dashboard.js?v=0220datasafetyp0qa','./js/one-line-import.js?v=0220datasafetyp0qa','./js/five-year-journal.js?v=0220datasafetyp0qa','./js/timeline-filter.js?v=0220datasafetyp0qa','./js/daily-question-calendar.js?v=0220datasafetyp0qa','./js/persistence-foundation.js?v=0220datasafetyp0qa','./js/app.js?v=0220datasafetyp0qa','./js/persistence-health.js?v=0220datasafetyp0qa','./js/v0220-nospend-readonly-diagnostic.js?v=0220datasafetyp0qa','./js/v0200-dashboard-forwarding-backup.js?v=0220datasafetyp0qa','./js/v0210-backup-plan.js?v=0220datasafetyp0qa','./js/v0220-data-safety-build.js?v=0220datasafetyp0qa','./data/daily-question-calendar.json?v=0220datasafetyp0qa','./icon.svg'];
+self.addEventListener('install',event=>{self.skipWaiting();event.waitUntil(caches.open(CACHE).then(c=>Promise.allSettled(STATIC.map(u=>c.add(u)))));});
+self.addEventListener('activate',event=>{event.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)));await self.clients.claim();})());});
+self.addEventListener('fetch',event=>{const req=event.request;if(req.method!=='GET')return;const url=new URL(req.url);if(req.mode==='navigate'||url.pathname.endsWith('/index.html')||url.pathname.endsWith('/')){event.respondWith(fetch(req).catch(()=>new Response('<!doctype html><meta charset="utf-8"><title>Offline</title><p>当前离线，请联网后重新打开手帐。</p>',{headers:{'Content-Type':'text/html; charset=utf-8'}})));return;}if(url.origin===self.location.origin)event.respondWith(caches.match(req).then(hit=>hit||fetch(req).then(res=>{if(res.ok&&(url.pathname.endsWith('.svg')||url.pathname.endsWith('.webmanifest'))){const copy=res.clone();caches.open(CACHE).then(c=>c.put(req,copy));}return res;})));});
