@@ -875,6 +875,23 @@ const historicalEsc=value=>String(value??'').replace(/[&<>\"]/g,char=>({'&':'&am
 function historicalFailure(message){const el=qs('#historicalDualImportError');if(el){el.hidden=false;el.textContent=message;}return null;}
 function historicalApprovals(){return [...qsa('#historicalDualImportPreview input[data-historical-conflict]:checked')].map(input=>input.dataset.historicalConflict);}
 function selectHistoricalDualImport(){const input=qs('#historicalDualImportFiles');input.value='';input.click();}
+function openHistoricalDualImport(){
+  const error=qs('#historicalDualImportError'),preview=qs('#historicalDualImportPreview'),confirm=qs('#historicalDualImportConfirm');
+  if(error){error.hidden=true;error.textContent='';}if(!historicalDualDraft&&preview)preview.innerHTML='<div class="import-preview-card"><b>选择历史文件</b><p class="small">可一次选择 manifest.json 与 One Line v7 merged backup；也可只选择其中一个文件。</p><button class="btn primary" type="button" onclick="selectHistoricalDualImport()">选择历史文件</button></div>';
+  if(confirm)confirm.disabled=!historicalDualDraft;
+  modalController.open('historicalDualImportModal');
+}
+function bindHistoricalDualImportEntry(){
+  const root=document;
+  if(root.documentElement.dataset.historicalImportClickController==='bound')return;
+  root.documentElement.dataset.historicalImportClickController='bound';
+  root.addEventListener('click',event=>{
+    const trigger=event.target.closest('[data-historical-import]');
+    if(!trigger)return;
+    event.preventDefault();
+    openHistoricalDualImport();
+  });
+}
 function readHistoricalFile(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve({file,payload:JSON.parse(reader.result)});reader.onerror=()=>reject(new Error(`无法读取 ${file.name}`));reader.readAsText(file);});}
 async function prepareHistoricalDualImport(event){
   const files=[...(event.target.files||[])];if(!files.length)return;
@@ -907,7 +924,8 @@ function commitHistoricalDualImport(){
   state=candidate;lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;renderAll();historicalDualDraft=null;modalController.close('historicalDualImportModal');alert(`历史日记导入完成：manifest 新增 ${staged.preview.manifest.insert}；One Line 新增 ${staged.preview.oneLine.insert}；明确替换 ${staged.preview.oneLine.approvedReplace}。`);
 }
 Object.assign(window,productivityModule,noSpendModule,collectionsModule,subscriptionModule,inventoryModule,sellersModule,ordersModule);
-Object.assign(window,{selectHistoricalDualImport,prepareHistoricalDualImport,closeHistoricalDualImport,commitHistoricalDualImport,renderHistoricalDualPreview});
+bindHistoricalDualImportEntry();
+Object.assign(window,{openHistoricalDualImport,selectHistoricalDualImport,prepareHistoricalDualImport,closeHistoricalDualImport,commitHistoricalDualImport,renderHistoricalDualPreview});
 window.openInventorySourceOrder=inventoryModule.openSourceOrder;
 window.inventoryTraceOpenDetail=(itemId,event)=>{inventoryEditDiagnostics.record('inventory_detail_open_requested',{itemId,source:'inventory list action',eventType:event?.type||'inline'});return inventoryModule.openInventoryItem(itemId);};
 window.inventoryEditTraceClick=(event)=>{inventoryEditDiagnostics.record('inventory_edit_button_clicked',{itemId:document.querySelector('#inventoryDetailModal')?.dataset.itemId||'',source:'inventory detail footer',eventType:event?.type||'inline'});return inventoryModule.editInventoryFromDetail();};

@@ -1,0 +1,13 @@
+const assert=require('assert'),fs=require('fs');
+const index=fs.readFileSync(require.resolve('../index.html'),'utf8'),app=fs.readFileSync(require.resolve('../js/app.js'),'utf8');
+assert.strictEqual((index.match(/data-historical-import/g)||[]).length,2);
+assert.strictEqual((index.match(/onclick="selectHistoricalDualImport\(\)"/g)||[]).length,0);
+assert(app.includes("event.target.closest('[data-historical-import]')"));
+assert(index.includes('id="historicalDualImportModal"'));
+assert(app.includes("root.addEventListener('click',event=>"));
+assert.strictEqual((app.match(/root\.addEventListener\('click',event=>/g)||[]).length,1);
+assert(app.includes("dataset.historicalImportClickController==='bound'"));
+assert(app.includes("modalController.open('historicalDualImportModal')"));
+assert(app.includes("onclick=\"selectHistoricalDualImport()\""));
+assert(app.includes('bindHistoricalDualImportEntry();'));
+console.log('Historical import entry controller: 9 assertions passed.');
