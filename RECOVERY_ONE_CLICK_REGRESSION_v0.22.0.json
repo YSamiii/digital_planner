@@ -1,0 +1,154 @@
+{
+  "pass": true,
+  "total": 19,
+  "results": [
+    {
+      "name": "package parse + schema + required modules",
+      "pass": true
+    },
+    {
+      "name": "package hash",
+      "pass": true
+    },
+    {
+      "name": "preview deterministic",
+      "pass": true
+    },
+    {
+      "name": "current-only Fan inventory preserved",
+      "pass": true
+    },
+    {
+      "name": "current-only 安速 batch preserved",
+      "pass": true
+    },
+    {
+      "name": "2026-09-04 empty metadata IDs preserved",
+      "pass": true
+    },
+    {
+      "name": "8/14 approved historical text",
+      "pass": true
+    },
+    {
+      "name": "8/15 approved historical text",
+      "pass": true
+    },
+    {
+      "name": "8/16 approved historical text",
+      "pass": true
+    },
+    {
+      "name": "8/29 Test text replacement",
+      "pass": true
+    },
+    {
+      "name": "8/29 Test growth replacement",
+      "pass": true
+    },
+    {
+      "name": "final approved counts",
+      "pass": true
+    },
+    {
+      "name": "Orders to Batch integrity",
+      "pass": true
+    },
+    {
+      "name": "inventory unresolved legacy reference preserved",
+      "pass": true
+    },
+    {
+      "name": "no media refs",
+      "pass": true
+    },
+    {
+      "name": "duplicate ID prevention",
+      "pass": true
+    },
+    {
+      "name": "second import is idempotent",
+      "pass": true
+    },
+    {
+      "name": "simulated quota failure leaves canonical bytes unchanged",
+      "pass": true
+    },
+    {
+      "name": "one-shot candidate serialization",
+      "pass": true
+    }
+  ],
+  "finalCounts": {
+    "legacyJournal": 497,
+    "dailyLogicalTextBlocks": 482,
+    "orders": 22,
+    "batches": 9,
+    "inventory": 3,
+    "subscriptions": 8,
+    "noSpend": 1,
+    "challenges": 1
+  },
+  "summary": {
+    "inserted": 1038,
+    "preserved": 0,
+    "skipped": 2,
+    "replaced": 1,
+    "byModule": {
+      "Daily": {
+        "inserted": 481,
+        "preserved": 0,
+        "skipped": 0,
+        "replaced": 1
+      },
+      "Legacy Journal": {
+        "inserted": 497,
+        "preserved": 0,
+        "skipped": 0,
+        "replaced": 0
+      },
+      "Orders": {
+        "inserted": 40,
+        "preserved": 0,
+        "skipped": 0,
+        "replaced": 0
+      },
+      "Batches": {
+        "inserted": 8,
+        "preserved": 0,
+        "skipped": 1,
+        "replaced": 0
+      },
+      "Inventory": {
+        "inserted": 2,
+        "preserved": 0,
+        "skipped": 1,
+        "replaced": 0
+      },
+      "Subscriptions": {
+        "inserted": 8,
+        "preserved": 0,
+        "skipped": 0,
+        "replaced": 0
+      },
+      "No Spend": {
+        "inserted": 1,
+        "preserved": 0,
+        "skipped": 0,
+        "replaced": 0
+      },
+      "Challenges": {
+        "inserted": 1,
+        "preserved": 0,
+        "skipped": 0,
+        "replaced": 0
+      }
+    },
+    "notes": []
+  },
+  "integrity": {
+    "ordersBatchBrokenRefs": [],
+    "danglingMediaRefs": [],
+    "schemaVersion": 12
+  }
+}
