@@ -1,0 +1,22 @@
+/* Run with: node tests/historical-dual-importer.test.js <manifest.json> <one-line-v7.json> */
+const assert=require('assert'),fs=require('fs'),vm=require('vm');
+const api=require('../js/historical-dual-import.js');
+const [manifestPath,oneLinePath]=process.argv.slice(2);
+if(!manifestPath||!oneLinePath)throw new Error('Two source JSON paths are required.');
+const manifest=api.parseManifest(JSON.parse(fs.readFileSync(manifestPath,'utf8')));
+const oneLine=api.parseOneLineV7(JSON.parse(fs.readFileSync(oneLinePath,'utf8')),'fixture-v7.json');
+assert(manifest.ok);assert.strictEqual(manifest.preview.total,504);assert.deepStrictEqual(manifest.preview.counts,{five_year_question:242,growth:246,event:16,legacy_journal:0,media:347});
+assert(oneLine.ok);assert.strictEqual(oneLine.preview.dates,228);assert.strictEqual(oneLine.preview.blocks,456);assert.strictEqual(oneLine.preview.mine,228);assert.strictEqual(oneLine.preview.xixi,228);assert.strictEqual(oneLine.preview.empty,3);
+const state={schemaVersion:12,legacyJournalRecords:[],legacyImportTombstones:{},dailyBlocks:{},dailyBlockMeta:{},customBlocks:[],importProvenance:{},settings:{}};
+const first=api.buildCandidate(state,{manifest,oneLine});assert.strictEqual(state.legacyJournalRecords.length,0);assert.strictEqual(state.dailyBlocks['2026-01-01'],undefined);assert.strictEqual(first.preview.manifest.insert,504);assert.strictEqual(first.preview.oneLine.insert,453);assert.strictEqual(first.preview.oneLine.emptySource,3);assert(api.validateCandidate(first.candidate).ok);
+const second=api.buildCandidate(first.candidate,{manifest,oneLine});assert.strictEqual(second.preview.manifest.duplicate,504);assert.strictEqual(second.preview.oneLine.provenanceDuplicate,453);assert.strictEqual(second.preview.oneLine.emptySource,3);
+const conflictState={schemaVersion:12,legacyJournalRecords:[],legacyImportTombstones:{},dailyBlocks:{'2026-01-01':{'我的一天':'current'}},dailyBlockMeta:{},customBlocks:[],importProvenance:{},settings:{}};
+const single={ok:true,entries:[{date:'2026-01-01',id:'mine',title:'我的一天',text:'history',fingerprint:api.hash('history')}],fileName:'changed.json'};
+const kept=api.buildCandidate(conflictState,{oneLine:single});assert.strictEqual(kept.preview.oneLine.conflict,1);assert.strictEqual(kept.candidate.dailyBlocks['2026-01-01']['我的一天'],'current');
+const replaced=api.buildCandidate(conflictState,{oneLine:single},['2026-01-01::mine']);assert.strictEqual(replaced.preview.oneLine.approvedReplace,1);assert.strictEqual(replaced.candidate.dailyBlocks['2026-01-01']['我的一天'],'history');
+const tombstoneState={schemaVersion:12,legacyJournalRecords:[],legacyImportTombstones:{'legacy-five-year-journal:2180159E-358E-4B21-A92E-7F5AA2DFA8EA':{userDeleted:true}},dailyBlocks:{},dailyBlockMeta:{},customBlocks:[],importProvenance:{},settings:{}};
+assert.strictEqual(api.buildCandidate(tombstoneState,{manifest}).preview.manifest.tombstone,1);
+const healthWindow={},healthContext={window:healthWindow,Blob,JSON,Object,Array,Number,String,Date,Math,console};vm.runInNewContext(fs.readFileSync(require.resolve('../js/persistence-health.js'),'utf8'),healthContext);
+const baseline={schemaVersion:12,dailyBlocks:{'2026-01-01':{'我的一天':'a'},'2026-01-02':{'我的一天':'b'},'2026-01-03':{'我的一天':'c'},'2026-01-04':{'我的一天':'d'},'2026-01-05':{'我的一天':'e'},'2026-01-06':{'我的一天':'f'},'2026-01-07':{'我的一天':'g'}},legacyJournalRecords:[]};
+const healthGate=healthWindow.PersistenceHealth.snapshotHealth(first.candidate,[{snapshotId:'healthy',createdAt:'2026-09-01T00:00:00Z',healthStatus:'healthy',healthFingerprint:healthWindow.PersistenceHealth.fingerprint(baseline)}]);assert.strictEqual(healthGate.allowed,true);
+console.log('Historical Dual Importer: 25 safety assertions passed.');

@@ -1,6 +1,6 @@
 window.JOURNAL_BUILD='0.22.0-data-safety-p0-qa';
 document.documentElement.dataset.runtimeBuild='0.22.0-data-safety-p0-qa';
-const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal} = window.JournalModules || {};
+const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.22.0';
 const BUILD_LABEL='Data Safety P0 QA';
@@ -829,7 +829,7 @@ function commitOneLineImport(){
     alert(`导入完成：\n${staged.result.importedDays} days\n${staged.result.importedBlocks} blocks\n跳过重复：${staged.result.skippedDuplicates}\n冲突：${staged.result.conflicts}\n错误：${staged.result.errors}`);
   }catch(error){alert(`导入失败，未修改当前数据：${error.message||error}`)}
 }
-if(!createProductivityModule||!createNoSpendModule||!createCollectionsModule||!createSubscriptionModule||!createMediaStore||!createInventoryModule||!createRecurrenceHelper||!createSellersModule||!createOrdersModule||!createTodayDashboard||!createOneLineImport||!createTimelineFilter||!createFiveYearJournal){
+if(!createProductivityModule||!createNoSpendModule||!createCollectionsModule||!createSubscriptionModule||!createMediaStore||!createInventoryModule||!createRecurrenceHelper||!createSellersModule||!createOrdersModule||!createTodayDashboard||!createOneLineImport||!createTimelineFilter||!createFiveYearJournal||!createHistoricalDualImporter){
   throw new Error('Required feature module failed to load. Please run refresh-clean-baseline.html.');
 }
 const modalController=(()=>{
@@ -868,8 +868,46 @@ window.getTodayJournalSummary=(currentState,date)=>todayDashboard.getTodayJourna
 window.hasMeaningfulDailyContent=(currentState,date)=>todayDashboard.hasMeaningfulDailyContent(currentState,date);
 const oneLineImport=createOneLineImport();
 const fiveYearJournal=createFiveYearJournal();
+const historicalDualImporter=createHistoricalDualImporter();
 const timelineFilter=createTimelineFilter();
+let historicalDualDraft=null;
+const historicalEsc=value=>String(value??'').replace(/[&<>\"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
+function historicalFailure(message){const el=qs('#historicalDualImportError');if(el){el.hidden=false;el.textContent=message;}return null;}
+function historicalApprovals(){return [...qsa('#historicalDualImportPreview input[data-historical-conflict]:checked')].map(input=>input.dataset.historicalConflict);}
+function selectHistoricalDualImport(){const input=qs('#historicalDualImportFiles');input.value='';input.click();}
+function readHistoricalFile(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve({file,payload:JSON.parse(reader.result)});reader.onerror=()=>reject(new Error(`无法读取 ${file.name}`));reader.readAsText(file);});}
+async function prepareHistoricalDualImport(event){
+  const files=[...(event.target.files||[])];if(!files.length)return;
+  try{
+    const parsed=await Promise.all(files.map(readHistoricalFile));let manifest=null,oneLine=null;
+    for(const item of parsed){if(Array.isArray(item.payload?.entries)){if(manifest)throw new Error('一次只能选择一份 manifest.json。');manifest=historicalDualImporter.parseManifest(item.payload);}
+      else if(item.payload?.app==='One Line a Day'){if(oneLine)throw new Error('一次只能选择一份 One Line v7 merged backup。');oneLine=historicalDualImporter.parseOneLineV7(item.payload,item.file.name);}
+      else throw new Error(`无法识别文件：${item.file.name}`);}
+    if(manifest&&!manifest.ok)throw new Error(manifest.errors.join('\n'));if(oneLine&&!oneLine.ok)throw new Error(oneLine.errors.join('\n'));if(!manifest&&!oneLine)throw new Error('请选择 manifest.json 或 One Line v7 merged backup。');
+    historicalDualDraft={manifest,oneLine};qs('#historicalDualImportError').hidden=true;renderHistoricalDualPreview();modalController.open('historicalDualImportModal');
+  }catch(error){historicalFailure(`未导入任何数据：${error.message||error}`);modalController.open('historicalDualImportModal');}
+}
+function historicalPreviewRows(items,kind){return items.map(item=>{const status={insert:'新增',duplicate:'同源重复跳过',tombstone:'已删除记录跳过',exact_duplicate:'完全重复跳过',provenance_duplicate:'已导入跳过',empty_source:'历史为空跳过',conflict:'冲突：默认保留当前',approved_replace:'已明确批准替换'}[item.status]||item.status;const conflict=item.status==='conflict'?`<label class="small"><input type="checkbox" data-historical-conflict="${historicalEsc(item.date+'::'+item.id)}" onchange="renderHistoricalDualPreview()"> 明确使用历史文本替换当前内容</label><p class="small"><b>当前：</b>${historicalEsc(item.currentText)}</p><p class="small"><b>历史：</b>${historicalEsc(item.importedText)}</p>`:'';return `<article class="import-preview-card"><b>${historicalEsc(item.date||'')} · ${historicalEsc(item.title||item.id||'')}</b><p class="small">${status}</p>${conflict}</article>`;}).join('');}
+function renderHistoricalDualPreview(){
+  const host=qs('#historicalDualImportPreview');if(!historicalDualDraft||!host)return;const staged=historicalDualImporter.buildCandidate(state,historicalDualDraft,historicalApprovals());historicalDualDraft.lastStaged=staged;const m=staged.preview.manifest,o=staged.preview.oneLine;
+  host.innerHTML=`<div class="import-preview-card"><b>Manifest</b><p>新增 ${m.insert} · 同源重复 ${m.duplicate} · tombstone ${m.tombstone} · 无效 ${m.invalid} · missing media metadata ${m.missingMedia}</p></div>${historicalPreviewRows(m.items,'manifest')}<div class="import-preview-card"><b>One Line v7</b><p>新增 ${o.insert} · 完全重复 ${o.exactDuplicate} · 当前保留 ${o.keepCurrent} · 冲突 ${o.conflict} · 历史为空 ${o.emptySource} · 已批准替换 ${o.approvedReplace} · 已导入 ${o.provenanceDuplicate}</p></div>${historicalPreviewRows(o.items,'oneLine')}`;
+  qs('#historicalDualImportConfirm').disabled=false;
+}
+function closeHistoricalDualImport(){historicalDualDraft=null;modalController.close('historicalDualImportModal');}
+function commitHistoricalDualImport(){
+  if(!historicalDualDraft)return;const before=state,staged=historicalDualImporter.buildCandidate(before,historicalDualDraft,historicalApprovals()),candidate=staged.candidate,integrity=historicalDualImporter.validateCandidate(candidate);
+  if(!integrity.ok){historicalFailure(`候选数据未通过完整性检查：${integrity.errors.join('；')}`);return;}
+  const health=window.PersistenceHealth;if(!health){historicalFailure('Snapshot Health Gate 不可用；没有写入任何数据。');return;}
+  const snapshots=before.settings?.autoProtection?.snapshots||[],gate=health.snapshotHealth(candidate,snapshots);if(!gate.allowed){historicalFailure(`Snapshot Health Gate 拒绝导入：${gate.reason}`);return;}
+  let payload;try{payload=JSON.stringify(candidate);}catch(error){historicalFailure(`无法生成候选保存内容：${error.message||error}`);return;}
+  const commit=window.PersistenceFoundation?.commitCanonical;if(typeof commit!=='function'){historicalFailure('统一安全保存路径不可用；没有写入任何数据。');return;}
+  const expected={legacyCount:(before.legacyJournalRecords||[]).length+staged.preview.manifest.insert,provenanceCount:Object.keys(before.importProvenance?.one_line_a_day||{}).length+staged.preview.oneLine.insert+staged.preview.oneLine.exactDuplicate+staged.preview.oneLine.approvedReplace};
+  const result=commit({storage:localStorage,key:KEY,payload,verifyReadBack:raw=>{const persisted=JSON.parse(raw),verified=historicalDualImporter.validateCandidate(persisted,expected);if(!verified.ok)throw new Error(verified.errors.join('；'));return {schemaVersion:persisted.schemaVersion,integrity:'pass'};}});
+  if(!result?.ok){historicalFailure(`保存失败；当前数据与预览仍保留：${result?.message||'未知错误'}`);return;}
+  state=candidate;lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;renderAll();historicalDualDraft=null;modalController.close('historicalDualImportModal');alert(`历史日记导入完成：manifest 新增 ${staged.preview.manifest.insert}；One Line 新增 ${staged.preview.oneLine.insert}；明确替换 ${staged.preview.oneLine.approvedReplace}。`);
+}
 Object.assign(window,productivityModule,noSpendModule,collectionsModule,subscriptionModule,inventoryModule,sellersModule,ordersModule);
+Object.assign(window,{selectHistoricalDualImport,prepareHistoricalDualImport,closeHistoricalDualImport,commitHistoricalDualImport,renderHistoricalDualPreview});
 window.openInventorySourceOrder=inventoryModule.openSourceOrder;
 window.inventoryTraceOpenDetail=(itemId,event)=>{inventoryEditDiagnostics.record('inventory_detail_open_requested',{itemId,source:'inventory list action',eventType:event?.type||'inline'});return inventoryModule.openInventoryItem(itemId);};
 window.inventoryEditTraceClick=(event)=>{inventoryEditDiagnostics.record('inventory_edit_button_clicked',{itemId:document.querySelector('#inventoryDetailModal')?.dataset.itemId||'',source:'inventory detail footer',eventType:event?.type||'inline'});return inventoryModule.editInventoryFromDetail();};
