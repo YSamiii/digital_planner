@@ -1,5 +1,5 @@
-window.JOURNAL_BUILD='0.22.0-data-safety-p0-qa';
-document.documentElement.dataset.runtimeBuild='0.22.0-data-safety-p0-qa';
+window.JOURNAL_BUILD='0.22.0-historical-import-qa3-diagnostic';
+document.documentElement.dataset.runtimeBuild='0.22.0-historical-import-qa3-diagnostic';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.22.0';
@@ -925,7 +925,7 @@ function commitHistoricalDualImport(){
 }
 Object.assign(window,productivityModule,noSpendModule,collectionsModule,subscriptionModule,inventoryModule,sellersModule,ordersModule);
 bindHistoricalDualImportEntry();
-Object.assign(window,{openHistoricalDualImport,selectHistoricalDualImport,prepareHistoricalDualImport,closeHistoricalDualImport,commitHistoricalDualImport,renderHistoricalDualPreview});
+Object.assign(window,{openHistoricalDualImport,openHistoricalDualImporter:openHistoricalDualImport,selectHistoricalDualImport,prepareHistoricalDualImport,closeHistoricalDualImport,commitHistoricalDualImport,renderHistoricalDualPreview});
 window.openInventorySourceOrder=inventoryModule.openSourceOrder;
 window.inventoryTraceOpenDetail=(itemId,event)=>{inventoryEditDiagnostics.record('inventory_detail_open_requested',{itemId,source:'inventory list action',eventType:event?.type||'inline'});return inventoryModule.openInventoryItem(itemId);};
 window.inventoryEditTraceClick=(event)=>{inventoryEditDiagnostics.record('inventory_edit_button_clicked',{itemId:document.querySelector('#inventoryDetailModal')?.dataset.itemId||'',source:'inventory detail footer',eventType:event?.type||'inline'});return inventoryModule.editInventoryFromDetail();};
@@ -1078,7 +1078,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0220nospendreadonlydiagnosticr2qa').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v=0220historicalimportqa3diagnostic').catch(err=>console.warn('SW registration failed',err));
   });
 }
 

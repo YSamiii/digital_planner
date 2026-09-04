@@ -167,6 +167,7 @@ body[data-theme="sage"] .theme-symbol::before{content:"🌿"}
 
 
 .page-back{display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;color:var(--primary);font-size:12px;font-weight:750;padding:8px 2px;margin:0 0 2px;min-height:44px}
+#historicalEntryDiagnosticPanel{position:fixed;top:calc(8px + env(safe-area-inset-top));right:8px;z-index:9999;max-width:min(94vw,430px);max-height:42dvh;overflow:hidden;padding:8px 10px;border:1px solid #b33c66;border-radius:10px;background:rgba(255,248,250,.96);color:#5e1730;box-shadow:0 4px 18px rgba(70,20,35,.18);font:10px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;pointer-events:none}#historicalEntryDiagnosticPanel b,#historicalEntryDiagnosticPanel span{display:block}#historicalEntryDiagnosticPanel span{opacity:.78;font-size:9px}#historicalEntryDiagnosticPanel pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:5px 0 0;max-height:30dvh;overflow:hidden;font:inherit}
 .page-back::before{content:"‹";font-size:20px;line-height:1}
 .modal{position:fixed;inset:0;z-index:40;display:none;align-items:flex-end;background:rgba(48,42,40,.28);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);overflow:hidden}
 .modal.open{display:flex}

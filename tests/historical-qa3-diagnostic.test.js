@@ -1,0 +1,11 @@
+const assert=require('assert'),fs=require('fs');
+const index=fs.readFileSync(require.resolve('../index.html'),'utf8'),app=fs.readFileSync(require.resolve('../js/app.js'),'utf8'),sw=fs.readFileSync(require.resolve('../sw.js'),'utf8'),diagnostic=fs.readFileSync(require.resolve('../js/historical-entry-diagnostic.js'),'utf8');
+assert(index.includes('historical-entry-diagnostic.js?v=0220historicalentryqa3diagnostic'));
+assert(index.includes('app.js?v=0220historicalimportqa3diagnostic'));
+assert(index.includes('historical-dual-import.js?v=0220historicaldualimporterqa3diagnostic'));
+assert(diagnostic.includes('ENTRY_CLICK_RECEIVED'));assert(diagnostic.includes('CONTROLLER_MATCHED'));assert(diagnostic.includes('OPEN_IMPORTER_CALLED'));assert(diagnostic.includes('MODAL_CREATED'));assert(diagnostic.includes('MODAL_VISIBLE'));
+assert(diagnostic.includes("window.addEventListener('error'"));assert(diagnostic.includes("window.addEventListener('unhandledrejection'"));
+assert(diagnostic.includes("closest?.('[data-historical-import]')"));assert(diagnostic.includes('getBoundingClientRect()'));assert(diagnostic.includes('getComputedStyle(modal)'));
+assert(app.includes('openHistoricalDualImporter:openHistoricalDualImport'));assert(app.includes("sw.js?v=0220historicalimportqa3diagnostic"));
+assert(sw.includes("journal-planner-static-v0220-historical-import-qa3-diagnostic"));assert(sw.includes('historical-entry-diagnostic.js?v=0220historicalentryqa3diagnostic'));
+console.log('Historical QA3 diagnostic: 17 assertions passed.');
