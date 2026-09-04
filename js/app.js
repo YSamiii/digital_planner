@@ -1,5 +1,5 @@
-window.JOURNAL_BUILD='0.22.0-historical-import-qa3-diagnostic';
-document.documentElement.dataset.runtimeBuild='0.22.0-historical-import-qa3-diagnostic';
+window.JOURNAL_BUILD='0.22.0-historical-import-qa4';
+document.documentElement.dataset.runtimeBuild='0.22.0-historical-import-qa4';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.22.0';
@@ -1078,7 +1078,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0220historicalimportqa3diagnostic').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v=0220historicalimportqa4').catch(err=>console.warn('SW registration failed',err));
   });
 }
 

@@ -1,0 +1,15 @@
+const assert=require('assert'),fs=require('fs');
+const index=fs.readFileSync(require.resolve('../index.html'),'utf8'),app=fs.readFileSync(require.resolve('../js/app.js'),'utf8'),v20=fs.readFileSync(require.resolve('../js/v0200-dashboard-forwarding-backup.js'),'utf8'),sw=fs.readFileSync(require.resolve('../sw.js'),'utf8'),styles=fs.readFileSync(require.resolve('../styles.css'),'utf8');
+assert(!v20.includes('installDailyQuestionLibraryAudit'));
+assert(v20.includes('window.getDailyQuestionLibraryAudit=auditQuestionCalendar'));
+assert(!index.includes('historical-entry-diagnostic.js'));
+assert(!app.includes('HistoricalEntryQA3Diagnostic'));
+assert(!styles.includes('historicalEntryDiagnosticPanel'));
+assert(!index.includes('ENTRY_CLICK_RECEIVED'));
+assert(index.includes('historical-dual-import.js?v=0220historicaldualimporterqa4'));
+assert(index.includes('app.js?v=0220historicalimportqa4'));
+assert(index.includes('v0220-data-safety-build.js?v=0220historicalimportqa4'));
+assert(app.includes("sw.js?v=0220historicalimportqa4"));
+assert(sw.includes('journal-planner-static-v0220-historical-import-qa4'));
+assert.strictEqual((index.match(/<script src="\.\/js\/app\.js/g)||[]).length,1);
+console.log('Historical QA4 startup cleanup: 12 assertions passed.');
