@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='0.22.0-one-click-recovery-import-qa';
-document.documentElement.dataset.runtimeBuild='0.22.0-one-click-recovery-import-qa';
+window.JOURNAL_BUILD='0.22.0-recovery-preview-classification-fix-qa';
+document.documentElement.dataset.runtimeBuild='0.22.0-recovery-preview-classification-fix-qa';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.22.0';
-const BUILD_LABEL='One-Click Recovery Import QA';
+const BUILD_LABEL='Recovery Preview Classification Fix QA';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 function defaultState(){return {schemaVersion:12,entries:[],months:{},weeks:{},long:{},projects:{},customBlocks:[],dailyBlocks:{},dailyBlockMeta:{},legacyJournalRecords:[],legacyImportTombstones:{},fiveYearQuestions:[],favorites:[],customTemplates:[],challenges:[],noSpendChallenges:[],twelveWeekYears:[],subscriptions:[],wishlists:[],inventory:{items:[],categories:[],locations:[]},orders:{items:[],sellers:[],pickupLocations:[],recurring:[],forwardingBatches:[]},settings:{theme:'sage',todayDashboard:{cards:Array.from({length:8},(_,id)=>({id,visible:true,order:id,hideWhenEmpty:false}))}}}}
@@ -1253,7 +1253,7 @@ async function recoverySha256(pkg){
   return Array.from(new Uint8Array(digest)).map(byte=>byte.toString(16).padStart(2,'0')).join('');
 }
 function recoveryPreviewHtml(staged){
-  const labels=[['Daily','Daily'],['Legacy Journal','Legacy Journal / Five Years'],['Orders','Orders'],['Batches','Forwarding Batches'],['Inventory','Inventory'],['Subscriptions','Subscriptions'],['No Spend','No Spend'],['Challenges','Challenges']];
+  const labels=[['Daily','Daily'],['Legacy Journal','Legacy Journal / Five Years'],['Orders','Orders'],['Sellers','Sellers'],['Pickup Locations','Pickup Locations'],['Recurring definitions','Recurring definitions'],['Forwarding Batches','Forwarding Batches'],['Inventory','Inventory'],['Subscriptions','Subscriptions'],['No Spend','No Spend'],['Challenges','Challenges']];
   const row=([key,label])=>{const value=staged.summary.byModule[key]||{inserted:0,preserved:0,skipped:0,replaced:0};return `<li><b>${recoveryEsc(label)}</b>：新增 ${value.inserted} / 保留 ${value.preserved} / 跳过 ${value.skipped}${value.replaced?` / 批准替换 ${value.replaced}`:''}</li>`;};
   return `<section class="import-preview-card"><b>准备恢复</b><ul>${labels.map(row).join('')}</ul><p class="section-note">总计：新增 ${staged.summary.inserted} · 保留 ${staged.summary.preserved} · 重复跳过 ${staged.summary.skipped} · 批准替换 ${staged.summary.replaced}</p><p class="small">将只写入文字与结构化数据；不会访问或写入图片、视频、Live Photo 或媒体库。</p></section>`;
 }

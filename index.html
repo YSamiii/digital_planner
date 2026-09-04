@@ -332,27 +332,27 @@
 <div id="inventoryReversalModal" class="modal" onclick="if(event.target===this)closeOrderInventoryReversal()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">INVENTORY</div><h2>撤销订单入库</h2><div class="small" id="reversalOrderName"></div></div><button class="modal-close" onclick="closeOrderInventoryReversal()">×</button></header><div class="modal-body"><p class="section-note">仅撤销本订单尚未撤销的入库事件；库存不足时会阻止提交，不会产生负库存。</p><div id="inventoryReversalList" class="import-list"></div></div><footer class="modal-footer"><button class="btn secondary" onclick="closeOrderInventoryReversal()">取消</button><button class="btn primary" onclick="commitOrderInventoryReversal()">确认撤销入库</button></footer></section></div>
 <div id="orderDeleteModal" class="modal" onclick="if(event.target===this)closeOrderDeleteOptions()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">ORDER</div><h2>删除订单</h2></div><button class="modal-close" onclick="closeOrderDeleteOptions()">×</button></header><div class="modal-body"><p id="orderDeleteMessage" class="section-note"></p><p class="section-note">删除订单不会自动改变库存。你可以保留已经入库的数量，或先撤销本订单入库后再删除。</p></div><footer class="modal-footer"><button class="btn secondary" onclick="closeOrderDeleteOptions()">取消</button><button class="btn secondary" onclick="deleteOrderOnly()">仅删除订单</button><button class="btn danger" onclick="reverseAndDeleteOrder()">撤销入库后删除</button></footer></section></div>
 <div id="pickupLocationModal" class="modal" onclick="if(event.target===this)closePickupLocationEditor()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">PICKUP</div><h2 id="pickupLocationTitle">新增取货点</h2></div><button class="modal-close" onclick="closePickupLocationEditor()">×</button></header><div class="modal-body"><label>取货点名称</label><input id="pickupLocationName" placeholder="例如：Markham Pickup"><label>地址</label><textarea id="pickupLocationAddress" class="textarea-small"></textarea><label>备注</label><textarea id="pickupLocationNotes" class="textarea-small"></textarea><div id="pickupLocationsList" class="manage-list"></div></div><footer class="modal-footer"><button class="btn secondary" onclick="closePickupLocationEditor()">完成</button><button class="btn primary" onclick="savePickupLocation()">保存取货点</button></footer></section></div>
-<script src="./js/media-store.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/recurrence.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/inventory.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/sellers.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/orders.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/productivity.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/challenges.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/collections.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/subscriptions.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/today-dashboard.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/one-line-import.js?v=0220oneclickrecoveryimportqa"></script><script src="./js/five-year-journal.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/timeline-filter.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/daily-question-calendar.js?v=0220oneclickrecoveryimportqa"></script>
+<script src="./js/media-store.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/recurrence.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/inventory.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/sellers.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/orders.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/productivity.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/challenges.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/collections.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/subscriptions.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/today-dashboard.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/one-line-import.js?v=0220recoverypreviewclassificationfixqa"></script><script src="./js/five-year-journal.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/timeline-filter.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/daily-question-calendar.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/persistence-foundation.js?v=fail-safe-persistence-foundation"></script>
-<script src="./js/recovery-import.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/app.js?v=0220oneclickrecoveryimportqa"></script>
+<script src="./js/recovery-import.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/app.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/persistence-health.js?v=p0-snapshot-health-gate"></script>
-<script src="./js/v0200-dashboard-forwarding-backup.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/v0210-backup-plan.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/v0220-nospend-readonly-diagnostic.js?v=0220oneclickrecoveryimportqa"></script>
-<script src="./js/v0220-one-click-recovery-import-build.js?v=0220oneclickrecoveryimportqa"></script>
+<script src="./js/v0200-dashboard-forwarding-backup.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/v0210-backup-plan.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/v0220-nospend-readonly-diagnostic.js?v=0220recoverypreviewclassificationfixqa"></script>
+<script src="./js/v0220-one-click-recovery-import-build.js?v=0220recoverypreviewclassificationfixqa"></script>
 <div id="growthExportModal" class="modal" onclick="if(event.target===this)closeGrowthExport()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">GROWTH EXPORT</div><h2>导出成长日记</h2></div><button class="modal-close" onclick="closeGrowthExport()">×</button></header><div class="modal-body"><label>时间范围</label><select id="growthExportRange" onchange="updateGrowthExportRange()"><option value="thisWeek">本周</option><option value="lastWeek">上周</option><option value="thisMonth">本月</option><option value="lastMonth">上月</option><option value="custom">自定义日期范围</option></select><div id="growthExportCustom" class="form-grid" hidden><div class="form-field"><label>开始日期</label><div class="date-field"><input id="growthExportStart" type="date" onchange="previewGrowthExport()"></div></div><div class="form-field"><label>结束日期</label><div class="date-field"><input id="growthExportEnd" type="date" onchange="previewGrowthExport()"></div></div></div><p id="growthExportPreview" class="section-note"></p><p class="small">包含今日成长摘要、详细记录、标签与来源类型；不导出二进制附件。</p></div><footer class="modal-footer"><button class="btn secondary" onclick="copyGrowthExport()">复制为文本</button><button class="btn secondary" onclick="downloadGrowthExport('md')">导出 Markdown</button><button class="btn primary" onclick="downloadGrowthExport('json')">导出 JSON</button></footer></section></div>
 <div id="recoveryAllDataModal" class="modal" onclick="if(event.target===this)closeRecoveryAllDataImport()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">RECOVERY IMPORT</div><h2>恢复数据导入</h2></div><button class="modal-close" type="button" onclick="closeRecoveryAllDataImport()">×</button></header><div class="modal-body"><p class="section-note">导入前已发起下载当前本机数据备份。恢复包只合并文字与结构化数据，不恢复任何图片、视频或 Live Photo。</p><div id="recoveryAllDataPreview" class="import-preview"></div></div><footer class="modal-footer"><button class="btn secondary" type="button" onclick="closeRecoveryAllDataImport()">取消</button><button class="btn primary" id="recoveryAllDataConfirm" type="button" onclick="commitRecoveryAllDataImport()" disabled>导入全部恢复数据</button></footer></section></div>
 </body>

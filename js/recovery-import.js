@@ -119,7 +119,10 @@
     Object.assign(next,mergeDaily(next,modules.daily,summary));
     next.legacyJournalRecords=mergeArray(next.legacyJournalRecords,(modules.legacyJournal.records||[]).map(sanitizeLegacy),'Legacy Journal',summary);
     const sourceOrders=modules.ordersBatches.orders||{};next.orders=next.orders&&typeof next.orders==='object'?next.orders:{};
-    for(const key of ['items','sellers','pickupLocations','recurring','forwardingBatches'])next.orders[key]=mergeArray(next.orders[key],sourceOrders[key],key==='forwardingBatches'?'Batches':'Orders',summary);
+    const orderCollections={items:'Orders',sellers:'Sellers',pickupLocations:'Pickup Locations',recurring:'Recurring definitions',forwardingBatches:'Forwarding Batches'};
+    for(const [key,previewLabel] of Object.entries(orderCollections))next.orders[key]=mergeArray(next.orders[key],sourceOrders[key],previewLabel,summary);
+    // Show every Orders sub-collection explicitly, including an empty pickup list.
+    Object.values(orderCollections).forEach(previewLabel=>bucket(summary,previewLabel));
     const sourceInventory=modules.inventory.inventory||{};next.inventory=next.inventory&&typeof next.inventory==='object'?next.inventory:{};
     for(const key of ['items','categories','locations'])next.inventory[key]=mergeArray(next.inventory[key],sourceInventory[key],key==='items'?'Inventory':'Inventory',summary);
     next.subscriptions=mergeArray(next.subscriptions,modules.subscriptions.records,'Subscriptions',summary);
