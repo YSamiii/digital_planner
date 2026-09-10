@@ -1,12 +1,13 @@
-window.JOURNAL_BUILD='0.22.2-inventory-use-one-qa2';
-document.documentElement.dataset.runtimeBuild='0.22.2-inventory-use-one-qa2';
+window.JOURNAL_BUILD='0.22.3-inventory-stable-sort-qa';
+document.documentElement.dataset.runtimeBuild='0.22.3-inventory-stable-sort-qa';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
-const APP_VERSION='0.22.2';
-const BUILD_LABEL='Inventory Use One iPhone QA';
+const APP_VERSION='0.22.3';
+const BUILD_LABEL='Inventory Stable Sort iPhone QA';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
-function defaultState(){return {schemaVersion:12,entries:[],months:{},weeks:{},long:{},projects:{},customBlocks:[],dailyBlocks:{},dailyBlockMeta:{},legacyJournalRecords:[],legacyImportTombstones:{},fiveYearQuestions:[],favorites:[],customTemplates:[],challenges:[],noSpendChallenges:[],twelveWeekYears:[],subscriptions:[],wishlists:[],inventory:{items:[],categories:[],locations:[]},orders:{items:[],sellers:[],pickupLocations:[],recurring:[],forwardingBatches:[]},settings:{theme:'sage',todayDashboard:{cards:Array.from({length:8},(_,id)=>({id,visible:true,order:id,hideWhenEmpty:false}))}}}}
+const INVENTORY_SORT_MODES=['added','updated','created','az','za','quantityAsc','quantityDesc','expiry'];
+function defaultState(){return {schemaVersion:12,entries:[],months:{},weeks:{},long:{},projects:{},customBlocks:[],dailyBlocks:{},dailyBlockMeta:{},legacyJournalRecords:[],legacyImportTombstones:{},fiveYearQuestions:[],favorites:[],customTemplates:[],challenges:[],noSpendChallenges:[],twelveWeekYears:[],subscriptions:[],wishlists:[],inventory:{items:[],categories:[],locations:[]},orders:{items:[],sellers:[],pickupLocations:[],recurring:[],forwardingBatches:[]},settings:{theme:'sage',inventorySortMode:'added',todayDashboard:{cards:Array.from({length:8},(_,id)=>({id,visible:true,order:id,hideWhenEmpty:false}))}}}}
 const TODAY_DASHBOARD_DEFAULTS=Array.from({length:8},(_,id)=>({id,visible:true,order:id,hideWhenEmpty:false}));
 function normalizeTodayDashboardPreferences(dashboard,additionalCards=[]){
   const input=Array.isArray(dashboard?.cards)?dashboard.cards:[];
@@ -96,6 +97,7 @@ state.orders=state.orders&&typeof state.orders==='object'?state.orders:{items:[]
 ['items','sellers','pickupLocations','recurring','forwardingBatches'].forEach(k=>state.orders[k]=Array.isArray(state.orders[k])?state.orders[k]:[]);
 state.schemaVersion=12;
 state.settings=state.settings&&typeof state.settings==='object'?state.settings:{theme:'sage'};
+state.settings.inventorySortMode=INVENTORY_SORT_MODES.includes(state.settings.inventorySortMode)?state.settings.inventorySortMode:'added';
 state.settings.todayDashboard=normalizeTodayDashboardPreferences(state.settings.todayDashboard);
 return state;
 }
@@ -874,7 +876,7 @@ window.snapshotStore=createSnapshotStore?.();
 const recurrence=createRecurrenceHelper();
 const inventoryI18n={
   locale:()=>String(document.documentElement.lang||'zh-CN').toLowerCase().startsWith('en')?'en':'zh',
-  t(key){const messages={useOne:{zh:'减少一个',en:'Use One'},useOneAria:{zh:'减少一个',en:'Use One'},undo:{zh:'撤销',en:'Undo'},reduced:{zh:'库存已减少 1',en:'Inventory reduced by 1'},cannotUse:{zh:'库存已为 0，无法继续减少。',en:'Inventory is already 0.'},saveFailed:{zh:'保存失败，库存数量未变。请重试。',en:'Save failed. Inventory quantity did not change. Please try again.'},undoFailed:{zh:'撤销保存失败，库存保持减少后的数量。请重试。',en:'Undo could not be saved. Inventory remains reduced. Please try again.'},undoUnavailable:{zh:'这次操作已无法撤销。',en:'This action can no longer be undone.'}};return messages[key]?.[this.locale()]||messages[key]?.zh||key;}
+  t(key){const messages={useOne:{zh:'减少一个',en:'Use One'},useOneAria:{zh:'减少一个',en:'Use One'},undo:{zh:'撤销',en:'Undo'},reduced:{zh:'库存已减少 1',en:'Inventory reduced by 1'},cannotUse:{zh:'库存已为 0，无法继续减少。',en:'Inventory is already 0.'},saveFailed:{zh:'保存失败，库存数量未变。请重试。',en:'Save failed. Inventory quantity did not change. Please try again.'},undoFailed:{zh:'撤销保存失败，库存保持减少后的数量。请重试。',en:'Undo could not be saved. Inventory remains reduced. Please try again.'},undoUnavailable:{zh:'这次操作已无法撤销。',en:'This action can no longer be undone.'},addedOrder:{zh:'添加顺序',en:'Added Order'},recentlyUpdated:{zh:'最近更新',en:'Recently Updated'},recentlyAdded:{zh:'最近加入',en:'Recently Added'},nameAZ:{zh:'名称 A–Z',en:'Name'},nameZA:{zh:'名称 Z–A',en:'Name Z–A'},quantityAsc:{zh:'数量少到多',en:'Quantity: Low to High'},quantityDesc:{zh:'数量多到少',en:'Quantity: High to Low'},expiry:{zh:'到期日期',en:'Expiry Date'}};return messages[key]?.[this.locale()]||messages[key]?.zh||key;}
 };
 const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
 const productivityModule=createProductivityModule(moduleCtx);
@@ -955,6 +957,7 @@ window.inventoryEditTraceClick=(event)=>{inventoryEditDiagnostics.record('invent
 window.inventoryEditTraceSave=(event)=>{inventoryEditDiagnostics.record('inventory_edit_save_clicked',{itemId:document.querySelector('#inventoryModal')?.dataset.itemId||'',source:'inventory editor footer',eventType:event?.type||'inline'});return inventoryModule.saveItem();};
 window.inventoryUseOne=(itemId,event)=>inventoryModule.useOne(itemId,event);
 window.undoInventoryUseOne=event=>inventoryModule.undoUseOne(event);
+window.setInventorySort=mode=>inventoryModule.setSort(mode);
 window.toggleOrderFulfillment=ordersModule.toggleFulfillment;
 window.toggleOrderManualTotal=ordersModule.toggleManualTotal;
 window.orderBatchChanged=ordersModule.batchChanged;
@@ -1103,7 +1106,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0222inventoryuseoneqa2').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v=0223inventorystablesortqa').catch(err=>console.warn('SW registration failed',err));
   });
 }
 

@@ -26,6 +26,6 @@ const undo=logic.stageUndo(slot.value,{itemId:'same-name-a',previousQuantity:5,n
 const useAgain=logic.stageUseOne(slot.value,'same-name-a',6000);commit(slot,useAgain.candidate,useAgain.itemId,4);const undoFailure=logic.stageUndo(slot.value,{itemId:'same-name-a',previousQuantity:5,nextQuantity:4},7000);assert(undoFailure.ok);assert(!commit(slot,undoFailure.candidate,undoFailure.itemId,5,false).ok);assert.strictEqual(slot.value.inventory.items.find(x=>x.id==='same-name-a').quantity,4);
 assert.strictEqual(logic.stageUndo(slot.value,{itemId:'same-name-a',previousQuantity:5,nextQuantity:3},8000).reason,'stale_undo');
 const inventorySource=fs.readFileSync(require.resolve('../js/inventory.js'),'utf8');
-assert(inventorySource.includes("list.sort(sortItems(sort))"));assert(inventorySource.includes("list=list.filter(i=>i.category===category)"));assert(inventorySource.includes("list=list.filter(i=>i.location===location)"));assert(inventorySource.includes('inventoryUseOne'));
+assert(inventorySource.includes("list.sort(sortItems(sort,state.items))"));assert(inventorySource.includes("list=list.filter(i=>i.category===category)"));assert(inventorySource.includes("list=list.filter(i=>i.location===location)"));assert(inventorySource.includes('inventoryUseOne'));
 const app=fs.readFileSync(require.resolve('../js/app.js'),'utf8');assert(app.includes('PersistenceFoundation?.commitCanonical'));assert(app.includes('function commitInventoryCandidate'));assert(app.includes('Number(persisted.schemaVersion)!==12'));
 console.log('Inventory Use One: 30 assertions passed.');
