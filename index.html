@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-build="0.22.2-inventory-use-one-qa">
+<html lang="zh-CN" data-build="0.22.2-inventory-use-one-qa2">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
@@ -8,7 +8,7 @@
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./icon.svg">
 <title>我的手帐</title>
-<link rel="stylesheet" href="./styles.css?v=0222inventoryuseoneqa">
+<link rel="stylesheet" href="./styles.css?v=0222inventoryuseoneqa2">
 </head>
 <body data-theme="sage">
 <div id="bootError" style="display:none;position:sticky;top:0;z-index:9999;background:#fff1f1;color:#8b3030;border-bottom:1px solid #e9bcbc;padding:10px 14px;font:12px -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif">
@@ -216,6 +216,7 @@
   <button data-root="life" onclick="go('life',this)" aria-label="Life / 生活"><b>⌂</b><span>生活</span><small>Life</small></button>
   <button data-root="more" onclick="go('more',this)" aria-label="More / 更多"><b>•••</b><span>更多</span><small>More</small></button>
 </nav>
+<div id="inventoryUseOneSnackbar" class="inventory-use-one-snackbar" role="status" aria-live="polite" hidden></div>
 
 <div id="entryModal" class="modal" onclick="if(event.target===this)closeEntry()">
   <div class="modal-sheet"><div class="modal-header"><div class="modal-heading"><h2>新建记录</h2></div><button class="modal-close" onclick="closeEntry()">×</button></div><div class="modal-body">
@@ -334,7 +335,7 @@
 <div id="pickupLocationModal" class="modal" onclick="if(event.target===this)closePickupLocationEditor()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">PICKUP</div><h2 id="pickupLocationTitle">新增取货点</h2></div><button class="modal-close" onclick="closePickupLocationEditor()">×</button></header><div class="modal-body"><label>取货点名称</label><input id="pickupLocationName" placeholder="例如：Markham Pickup"><label>地址</label><textarea id="pickupLocationAddress" class="textarea-small"></textarea><label>备注</label><textarea id="pickupLocationNotes" class="textarea-small"></textarea><div id="pickupLocationsList" class="manage-list"></div></div><footer class="modal-footer"><button class="btn secondary" onclick="closePickupLocationEditor()">完成</button><button class="btn primary" onclick="savePickupLocation()">保存取货点</button></footer></section></div>
 <script src="./js/media-store.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/recurrence.js?v=0220recoverypreviewclassificationfixqa"></script>
-<script src="./js/inventory.js?v=0222inventoryuseoneqa"></script>
+<script src="./js/inventory.js?v=0222inventoryuseoneqa2"></script>
 <script src="./js/sellers.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/orders.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/productivity.js?v=0220recoverypreviewclassificationfixqa"></script>
@@ -347,12 +348,12 @@
 <script src="./js/timeline-filter.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/daily-question-calendar.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/persistence-foundation.js?v=0220datasafetyp0qa"></script>
-<script src="./js/app.js?v=0222inventoryuseoneqa"></script>
+<script src="./js/app.js?v=0222inventoryuseoneqa2"></script>
 <script src="./js/persistence-health.js?v=0220datasafetyp0qa"></script>
 <script src="./js/v0200-dashboard-forwarding-backup.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/v0210-backup-plan.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/v0220-nospend-readonly-diagnostic.js?v=0220recoverypreviewclassificationfixqa"></script>
-<script src="./js/v0220-data-safety-build.js?v=0222inventoryuseoneqa"></script>
+<script src="./js/v0220-data-safety-build.js?v=0222inventoryuseoneqa2"></script>
 <div id="growthExportModal" class="modal" onclick="if(event.target===this)closeGrowthExport()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">GROWTH EXPORT</div><h2>导出成长日记</h2></div><button class="modal-close" onclick="closeGrowthExport()">×</button></header><div class="modal-body"><label>时间范围</label><select id="growthExportRange" onchange="updateGrowthExportRange()"><option value="thisWeek">本周</option><option value="lastWeek">上周</option><option value="thisMonth">本月</option><option value="lastMonth">上月</option><option value="custom">自定义日期范围</option></select><div id="growthExportCustom" class="form-grid" hidden><div class="form-field"><label>开始日期</label><div class="date-field"><input id="growthExportStart" type="date" onchange="previewGrowthExport()"></div></div><div class="form-field"><label>结束日期</label><div class="date-field"><input id="growthExportEnd" type="date" onchange="previewGrowthExport()"></div></div></div><p id="growthExportPreview" class="section-note"></p><p class="small">包含今日成长摘要、详细记录、标签与来源类型；不导出二进制附件。</p></div><footer class="modal-footer"><button class="btn secondary" onclick="copyGrowthExport()">复制为文本</button><button class="btn secondary" onclick="downloadGrowthExport('md')">导出 Markdown</button><button class="btn primary" onclick="downloadGrowthExport('json')">导出 JSON</button></footer></section></div>
 </body>
 </html>

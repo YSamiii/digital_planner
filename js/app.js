@@ -1,5 +1,5 @@
-window.JOURNAL_BUILD='0.22.2-inventory-use-one-qa';
-document.documentElement.dataset.runtimeBuild='0.22.2-inventory-use-one-qa';
+window.JOURNAL_BUILD='0.22.2-inventory-use-one-qa2';
+document.documentElement.dataset.runtimeBuild='0.22.2-inventory-use-one-qa2';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.22.2';
@@ -1103,7 +1103,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0222inventoryuseoneqa').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v=0222inventoryuseoneqa2').catch(err=>console.warn('SW registration failed',err));
   });
 }
 
