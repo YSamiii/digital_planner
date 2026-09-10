@@ -1,7 +1,7 @@
 (function(){
   'use strict';
-  const build='0.22.0-historical-import-qa4';
+  const build='0.22.2-inventory-use-one-qa';
   window.JOURNAL_BUILD=build;
   document.documentElement.dataset.runtimeBuild=build;
-  window.dispatchEvent(new CustomEvent('journalBuildReady',{detail:{build,label:'Historical Import QA4'}}));
+  window.dispatchEvent(new CustomEvent('journalBuildReady',{detail:{build,label:'Inventory Use One iPhone QA'}}));
 })();

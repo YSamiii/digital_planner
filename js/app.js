@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='0.22.0-historical-import-qa4';
-document.documentElement.dataset.runtimeBuild='0.22.0-historical-import-qa4';
+window.JOURNAL_BUILD='0.22.2-inventory-use-one-qa';
+document.documentElement.dataset.runtimeBuild='0.22.2-inventory-use-one-qa';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
-const APP_VERSION='0.22.0';
-const BUILD_LABEL='Data Safety P0 QA';
+const APP_VERSION='0.22.2';
+const BUILD_LABEL='Inventory Use One iPhone QA';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 function defaultState(){return {schemaVersion:12,entries:[],months:{},weeks:{},long:{},projects:{},customBlocks:[],dailyBlocks:{},dailyBlockMeta:{},legacyJournalRecords:[],legacyImportTombstones:{},fiveYearQuestions:[],favorites:[],customTemplates:[],challenges:[],noSpendChallenges:[],twelveWeekYears:[],subscriptions:[],wishlists:[],inventory:{items:[],categories:[],locations:[]},orders:{items:[],sellers:[],pickupLocations:[],recurring:[],forwardingBatches:[]},settings:{theme:'sage',todayDashboard:{cards:Array.from({length:8},(_,id)=>({id,visible:true,order:id,hideWhenEmpty:false}))}}}}
@@ -544,6 +544,25 @@ function save(){
   if(!result.ok)return fail(result.stage,{name:result.errorName,message:result.message});
   lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;return result;
 }
+function commitInventoryCandidate(candidate,{itemId,expectedQuantity}={}){
+  const fail=(stage,error)=>{const result={ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false};window.lastPersistenceResult=result;return result;};
+  if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取。为保护现有记录，App 已暂停保存。'));
+  let payload='';try{payload=JSON.stringify(candidate);}catch(error){return fail('JSON.stringify',error);}
+  const commit=window.PersistenceFoundation?.commitCanonical;
+  if(typeof commit!=='function')return fail('quota_safe_commit_unavailable',new Error('统一安全保存路径不可用'));
+  const result=commit({storage:localStorage,key:KEY,payload,verifyReadBack:raw=>{
+    const persisted=JSON.parse(raw);
+    if(!persisted||typeof persisted!=='object'||Array.isArray(persisted))throw new Error('canonical read-back root 无效');
+    if(Number(persisted.schemaVersion)!==12)throw new Error('canonical read-back schemaVersion 无效');
+    const item=(persisted.inventory?.items||[]).find(entry=>String(entry?.id)===String(itemId));
+    if(!item)throw new Error('canonical read-back inventory item 缺失');
+    if(!Number.isFinite(Number(item.quantity))||Number(item.quantity)<0)throw new Error('canonical read-back inventory quantity 无效');
+    if(Number(item.quantity)!==Number(expectedQuantity))throw new Error('canonical read-back inventory quantity 不匹配');
+    return {schemaVersion:persisted.schemaVersion,inventoryItemId:String(itemId),quantity:Number(item.quantity)};
+  }});
+  if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
+  state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;return result;
+}
 function renderAppVersion(){for(const el of document.querySelectorAll('[data-app-version]'))el.textContent=`v${APP_VERSION}`;for(const el of document.querySelectorAll('[data-build-label]'))el.textContent=BUILD_LABEL;}
 const inventoryEditDiagnostics=(()=>{
   const TRACE_KEY='journal-planner-inventory-edit-trace-v0163';
@@ -853,7 +872,11 @@ const modalController=(()=>{
 const mediaStore=createMediaStore();
 window.snapshotStore=createSnapshotStore?.();
 const recurrence=createRecurrenceHelper();
-const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,modal:modalController,media:mediaStore,recurrence,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
+const inventoryI18n={
+  locale:()=>String(document.documentElement.lang||'zh-CN').toLowerCase().startsWith('en')?'en':'zh',
+  t(key){const messages={useOne:{zh:'减少一个',en:'Use One'},useOneAria:{zh:'减少一个',en:'Use One'},undo:{zh:'撤销',en:'Undo'},reduced:{zh:'库存已减少 1',en:'Inventory reduced by 1'},cannotUse:{zh:'库存已为 0，无法继续减少。',en:'Inventory is already 0.'},saveFailed:{zh:'保存失败，库存数量未变。请重试。',en:'Save failed. Inventory quantity did not change. Please try again.'},undoFailed:{zh:'撤销保存失败，库存保持减少后的数量。请重试。',en:'Undo could not be saved. Inventory remains reduced. Please try again.'},undoUnavailable:{zh:'这次操作已无法撤销。',en:'This action can no longer be undone.'}};return messages[key]?.[this.locale()]||messages[key]?.zh||key;}
+};
+const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
 const productivityModule=createProductivityModule(moduleCtx);
 const noSpendModule=createNoSpendModule(moduleCtx);
 const collectionsModule=createCollectionsModule(moduleCtx);
@@ -930,6 +953,8 @@ window.openInventorySourceOrder=inventoryModule.openSourceOrder;
 window.inventoryTraceOpenDetail=(itemId,event)=>{inventoryEditDiagnostics.record('inventory_detail_open_requested',{itemId,source:'inventory list action',eventType:event?.type||'inline'});return inventoryModule.openInventoryItem(itemId);};
 window.inventoryEditTraceClick=(event)=>{inventoryEditDiagnostics.record('inventory_edit_button_clicked',{itemId:document.querySelector('#inventoryDetailModal')?.dataset.itemId||'',source:'inventory detail footer',eventType:event?.type||'inline'});return inventoryModule.editInventoryFromDetail();};
 window.inventoryEditTraceSave=(event)=>{inventoryEditDiagnostics.record('inventory_edit_save_clicked',{itemId:document.querySelector('#inventoryModal')?.dataset.itemId||'',source:'inventory editor footer',eventType:event?.type||'inline'});return inventoryModule.saveItem();};
+window.inventoryUseOne=(itemId,event)=>inventoryModule.useOne(itemId,event);
+window.undoInventoryUseOne=event=>inventoryModule.undoUseOne(event);
 window.toggleOrderFulfillment=ordersModule.toggleFulfillment;
 window.toggleOrderManualTotal=ordersModule.toggleManualTotal;
 window.orderBatchChanged=ordersModule.batchChanged;
@@ -1078,7 +1103,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0220historicalimportqa4').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v=0222inventoryuseoneqa').catch(err=>console.warn('SW registration failed',err));
   });
 }
 
