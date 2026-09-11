@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='0.22.3-inventory-stable-sort-qa';
-document.documentElement.dataset.runtimeBuild='0.22.3-inventory-stable-sort-qa';
+window.JOURNAL_BUILD='v0.22.4-orders-screenshot-import-iphone-qa1-20260911';
+document.documentElement.dataset.runtimeBuild='v0.22.4-orders-screenshot-import-iphone-qa1-20260911';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
-const APP_VERSION='0.22.3';
-const BUILD_LABEL='Inventory Stable Sort iPhone QA';
+const APP_VERSION='0.22.4';
+const BUILD_LABEL='Handbook Journal v0.22.4 Orders Screenshot Import iPhone QA';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 const INVENTORY_SORT_MODES=['added','updated','created','az','za','quantityAsc','quantityDesc','expiry'];
@@ -565,6 +565,19 @@ function commitInventoryCandidate(candidate,{itemId,expectedQuantity}={}){
   if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
   state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;return result;
 }
+/* Screenshot import is deliberately isolated from legacy saveOrder(): it only
+   replaces live state after the unified canonical commit has read back the
+   exact candidate Seller + Order transaction. */
+function commitImportedOrderCandidate(candidate,{orderId,sellerId=''}={}){
+  const fail=(stage,error)=>({ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false});
+  if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取。为保护现有记录，App 已暂停保存。'));
+  let payload;try{payload=JSON.stringify(candidate);}catch(error){return fail('JSON.stringify',error);}
+  const commit=window.PersistenceFoundation?.commitCanonical;if(typeof commit!=='function')return fail('quota_safe_commit_unavailable',new Error('统一安全保存路径不可用'));
+  const result=commit({storage:localStorage,key:KEY,payload,verifyReadBack:raw=>{const saved=JSON.parse(raw),order=(saved?.orders?.items||[]).find(x=>x?.id===orderId);if(Number(saved?.schemaVersion)!==12||!order||order.importMeta?.source!=='ai_order_screenshot')throw new Error('canonical read-back imported order 无效');if(sellerId&&!(saved.orders?.sellers||[]).some(x=>x?.id===sellerId))throw new Error('canonical read-back seller 缺失');return {schemaVersion:12,orderId};}});
+  if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
+  state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.lastPersistenceResult=result;window.__canonicalSaveFailurePending=null;return result;
+}
+window.commitImportedOrderCandidate=commitImportedOrderCandidate;
 function renderAppVersion(){for(const el of document.querySelectorAll('[data-app-version]'))el.textContent=`v${APP_VERSION}`;for(const el of document.querySelectorAll('[data-build-label]'))el.textContent=BUILD_LABEL;}
 const inventoryEditDiagnostics=(()=>{
   const TRACE_KEY='journal-planner-inventory-edit-trace-v0163';
@@ -853,6 +866,7 @@ function commitOneLineImport(){
 if(!createProductivityModule||!createNoSpendModule||!createCollectionsModule||!createSubscriptionModule||!createMediaStore||!createInventoryModule||!createRecurrenceHelper||!createSellersModule||!createOrdersModule||!createTodayDashboard||!createOneLineImport||!createTimelineFilter||!createFiveYearJournal||!createHistoricalDualImporter){
   throw new Error('Required feature module failed to load. Please run refresh-clean-baseline.html.');
 }
+window.getAppState=()=>state;
 const modalController=(()=>{
   let lockedScrollY=0;
   const suspended=new Map();
@@ -871,6 +885,7 @@ const modalController=(()=>{
   function activeCount(){return qsa('.modal.open').length}
   return{open,close,suspend,resume,push,pop,isOpen,activeCount};
 })();
+window.modal=modalController;
 const mediaStore=createMediaStore();
 window.snapshotStore=createSnapshotStore?.();
 const recurrence=createRecurrenceHelper();
@@ -962,6 +977,19 @@ window.toggleOrderFulfillment=ordersModule.toggleFulfillment;
 window.toggleOrderManualTotal=ordersModule.toggleManualTotal;
 window.orderBatchChanged=ordersModule.batchChanged;
 window.renderOrders=ordersModule.render;
+function ensureOrderDraftModal(){if(qs('#orderDraftModal'))return;const el=document.createElement('div');el.id='orderDraftModal';el.className='modal';el.innerHTML='<section class="modal-sheet"><header class="modal-header"><h2>识别结果</h2><button class="modal-close" onclick="cancelOrderImportDraft()">×</button></header><div class="modal-body" id="orderDraftBody"></div><footer class="modal-footer"><button class="btn secondary" onclick="cancelOrderImportDraft()">取消</button><button class="btn primary" onclick="commitOrderImportDraft()">创建订单</button></footer></section>';document.body.append(el)}
+function draftInput(k,label,type='text'){const d=window.OrderImportDraft,v=d[k]??'';return `<label>${label}<input data-draft="${k}" type="${type}" value="${esc(v)}" oninput="markOrderDraftEdited('${k}')"></label>`}
+window.markOrderDraftEdited=k=>{if(window.OrderImportDraft)window.OrderImportDraft.userEditedFields[k]=true};
+window.renderOrderImportDraft=()=>{const d=window.OrderImportDraft;if(!d)return;ensureOrderDraftModal();const warn=k=>!d.userEditedFields[k]&&Number(d.recognition?.orders?.[0]?.[k]?.confidence||d.recognition?.orders?.[0]?.seller?.confidence||1)<.85?' <small>需要确认</small>':'';qs('#orderDraftBody').innerHTML=draftInput('sellerName','卖家')+draftInput('platform','平台')+draftInput('orderNumber','订单号')+draftInput('orderDate','订单日期','date')+draftInput('fulfillmentType','履约方式')+draftInput('status','状态')+draftInput('expectedDate','预计日期','date')+draftInput('trackingNumber','物流单号')+draftInput('currency','货币')+draftInput('subtotal','小计','number')+draftInput('shipping','运费','number')+draftInput('tax','税','number')+draftInput('discount','折扣','number')+draftInput('totalAmount','总额','number')+'<h3>商品</h3><div id="draftItems">'+d.items.map((x,i)=>`<div><input data-item="${i}" data-k="name" value="${esc(x.name)}"><input data-item="${i}" data-k="quantity" type="number" value="${x.quantity??1}"><input data-item="${i}" data-k="unitPrice" type="number" value="${x.unitPrice??''}"><button onclick="removeOrderDraftItem(${i})">移除</button></div>`).join('')+'</div><button onclick="addOrderDraftItem()">添加商品</button><label>备注<textarea data-draft="notes" oninput="markOrderDraftEdited(\'notes\')">'+esc(d.notes||'')+'</textarea></label>';modal.open('orderDraftModal')};
+window.addOrderDraftItem=()=>{window.OrderImportDraft.items.push({name:'',quantity:1,unitPrice:null});window.renderOrderImportDraft()};window.removeOrderDraftItem=i=>{if(window.OrderImportDraft.items.length>1){window.OrderImportDraft.items.splice(i,1);window.renderOrderImportDraft()}};
+window.cancelOrderImportDraft=()=>{window.OrderImportDraft=null;modal.close('orderDraftModal');};
+window.commitOrderImportDraft=()=>{const d=window.OrderImportDraft;if(!d)return;qs('#orderDraftBody').querySelectorAll('[data-draft]').forEach(x=>d[x.dataset.draft]=x.value);qs('#orderDraftBody').querySelectorAll('[data-item]').forEach(x=>d.items[+x.dataset.item][x.dataset.k]=x.value);d.items=d.items.map(x=>({...x,quantity:Number(x.quantity),unitPrice:x.unitPrice===''?null:Number(x.unitPrice)}));const api=window.OrdersScreenshotImport;if(!d.sellerName||!['direct','pickup','local','forwarding'].includes(d.fulfillmentType)||!d.items.length||d.items.some(x=>!x.name||!(x.quantity>0)))return alert('请完成必填字段。');const res=api.sellerResolution(d.sellerName,state.orders.sellers);let candidate=JSON.parse(JSON.stringify(state));candidate.orders=candidate.orders||{items:[],sellers:[]};if(res.kind==='exact')d.sellerId=res.sellerId;else{const seller={id:`seller-${Date.now()}`,name:d.sellerName,defaultFulfillmentType:d.fulfillmentType,createdAt:Date.now(),updatedAt:Date.now()};candidate.orders.sellers.push(seller);d.sellerId=seller.id}const dup=api.findImportedOrderDuplicate(d,candidate.orders.items);if(dup.kind!=='none'&&!confirm('可能已存在此订单，仍然新增？'))return;const order=api.buildCanonicalOrderFromScreenshotDraft(d,candidate);candidate.orders.items.push(order);const saved=commitImportedOrderCandidate(candidate,{orderId:order.id,sellerId:d.sellerId});if(!saved.ok)return alert('保存失败');window.cancelOrderImportDraft();renderAll();alert('订单已创建');};
+/* Ephemeral screenshot recognition flow. It never writes until a future Draft
+   Review confirmation explicitly invokes commitImportedOrderCandidate(). */
+window.OrderImportDraft=null;let orderScreenshotRecognizer=null;
+window.openOrderScreenshotImport=()=>{const remembered=localStorage.getItem('ordersScreenshotRecognitionConsent')==='true';qs('#orderScreenshotConsent').hidden=remembered;qs('#orderScreenshotStatus').textContent='';modal.open('orderScreenshotModal');};
+window.closeOrderScreenshotImport=()=>{qs('#orderScreenshotFiles').value='';modal.close('orderScreenshotModal');};
+window.cancelOrderScreenshotImport=()=>{orderScreenshotRecognizer?.cancel();window.OrderImportDraft=null;window.closeOrderScreenshotImport();};
 window.setOrderFilter=ordersModule.setFilter;
 window.clearOrderFilters=ordersModule.clearFilters;
 function renderAll(){window.renderTodayHub?.();renderRecent();renderEntries();renderMonth();renderWeek();renderPhotos();renderThemeList();renderTodayBlocks();renderCustomBlockSettings();renderFavoriteTemplates();productivityModule.render();noSpendModule.render();collectionsModule.renderWishlists();subscriptionModule.render();inventoryModule.render();sellersModule.render();ordersModule.render();inventoryEditDiagnostics.renderCount();ordersSaveDiagnostics.renderCount();ordersPersistenceDiagnostics.renderCount();renderAppVersion()}
@@ -1106,7 +1134,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0223inventorystablesortqa').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v=0224ordersscreenshotimportqa1-20260911').catch(err=>console.warn('SW registration failed',err));
   });
 }
 
