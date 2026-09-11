@@ -8,7 +8,7 @@
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./icon.svg">
 <title>我的手帐</title>
-<link rel="stylesheet" href="./styles.css?v=0224ordersscreenshotimportqa1-20260911">
+<link rel="stylesheet" href="./styles.css?v=0224ordersscreenshotimportqa3-diagnostic-20260911">
 </head>
 <body data-theme="sage">
 <div id="bootError" style="display:none;position:sticky;top:0;z-index:9999;background:#fff1f1;color:#8b3030;border-bottom:1px solid #e9bcbc;padding:10px 14px;font:12px -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif">
@@ -334,7 +334,7 @@
 <div id="inventoryReversalModal" class="modal" onclick="if(event.target===this)closeOrderInventoryReversal()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">INVENTORY</div><h2>撤销订单入库</h2><div class="small" id="reversalOrderName"></div></div><button class="modal-close" onclick="closeOrderInventoryReversal()">×</button></header><div class="modal-body"><p class="section-note">仅撤销本订单尚未撤销的入库事件；库存不足时会阻止提交，不会产生负库存。</p><div id="inventoryReversalList" class="import-list"></div></div><footer class="modal-footer"><button class="btn secondary" onclick="closeOrderInventoryReversal()">取消</button><button class="btn primary" onclick="commitOrderInventoryReversal()">确认撤销入库</button></footer></section></div>
 <div id="orderDeleteModal" class="modal" onclick="if(event.target===this)closeOrderDeleteOptions()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">ORDER</div><h2>删除订单</h2></div><button class="modal-close" onclick="closeOrderDeleteOptions()">×</button></header><div class="modal-body"><p id="orderDeleteMessage" class="section-note"></p><p class="section-note">删除订单不会自动改变库存。你可以保留已经入库的数量，或先撤销本订单入库后再删除。</p></div><footer class="modal-footer"><button class="btn secondary" onclick="closeOrderDeleteOptions()">取消</button><button class="btn secondary" onclick="deleteOrderOnly()">仅删除订单</button><button class="btn danger" onclick="reverseAndDeleteOrder()">撤销入库后删除</button></footer></section></div>
 <div id="pickupLocationModal" class="modal" onclick="if(event.target===this)closePickupLocationEditor()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">PICKUP</div><h2 id="pickupLocationTitle">新增取货点</h2></div><button class="modal-close" onclick="closePickupLocationEditor()">×</button></header><div class="modal-body"><label>取货点名称</label><input id="pickupLocationName" placeholder="例如：Markham Pickup"><label>地址</label><textarea id="pickupLocationAddress" class="textarea-small"></textarea><label>备注</label><textarea id="pickupLocationNotes" class="textarea-small"></textarea><div id="pickupLocationsList" class="manage-list"></div></div><footer class="modal-footer"><button class="btn secondary" onclick="closePickupLocationEditor()">完成</button><button class="btn primary" onclick="savePickupLocation()">保存取货点</button></footer></section></div>
-<div id="orderScreenshotModal" class="modal" onclick="if(event.target===this)closeOrderScreenshotImport()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">AI ORDER</div><h2>从订单截图识别</h2></div><button class="modal-close" onclick="closeOrderScreenshotImport()">×</button></header><div class="modal-body"><p id="orderScreenshotConsent">订单截图将发送至 AI 服务进行识别。截图默认不会保存到订单中。</p><input id="orderScreenshotFiles" type="file" accept="image/*" multiple><p id="orderScreenshotStatus" class="section-note"></p></div><footer class="modal-footer"><button class="btn secondary" onclick="cancelOrderScreenshotImport()">取消</button><button class="btn primary" onclick="startOrderScreenshotRecognition()">开始识别</button></footer></section></div>
+<div id="orderScreenshotModal" class="modal" onclick="if(event.target===this)closeOrderScreenshotImport()"><section class="modal-sheet"><header class="modal-header"><div class="modal-heading"><div class="kicker">AI ORDER</div><h2>从订单截图识别</h2></div><button class="modal-close" onclick="closeOrderScreenshotImport()">×</button></header><div class="modal-body"><p id="orderScreenshotConsent">订单截图将发送至 AI 服务进行识别。截图默认不会保存到订单中。</p><input id="orderScreenshotFiles" type="file" accept="image/*" multiple><p id="orderScreenshotStatus" class="section-note"></p><details id="orderScreenshotNetworkDiagnostic" class="order-network-diagnostic"><summary>网络诊断</summary><p data-network-diagnostic="origin"></p><p data-network-diagnostic="endpoint"></p><p data-network-diagnostic="stage"></p><p data-network-diagnostic="httpStatus"></p><p data-network-diagnostic="errorName"></p><p data-network-diagnostic="errorCode"></p></details></div><footer class="modal-footer"><button class="btn secondary" onclick="cancelOrderScreenshotImport()">取消</button><button class="btn primary" onclick="startOrderScreenshotRecognition()">开始识别</button></footer></section></div>
 <script src="./js/media-store.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/recurrence.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/inventory.js?v=0223inventorystablesortqa"></script>
@@ -350,12 +350,13 @@
 <script src="./js/timeline-filter.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/daily-question-calendar.js?v=0220recoverypreviewclassificationfixqa"></script>
 <script src="./js/persistence-foundation.js?v=0220datasafetyp0qa"></script>
-<script src="./js/order-screenshot-recognizer.js?v=0224ordersscreenshotimportqa1-20260911"></script>
+<script src="./js/order-network-diagnostic.js?v=0224ordersscreenshotimportqa3-diagnostic-20260911"></script>
+<script src="./js/order-screenshot-recognizer.js?v=0224ordersscreenshotimportqa3-diagnostic-20260911"></script>
 <script src="./js/order-screenshot-i18n.js?v=0224ordersscreenshotimportqa1-20260911"></script>
 <script src="./js/order-entry-i18n.js?v=0224ordersscreenshotimportqa1-20260911"></script>
 <script src="./js/orders-screenshot-import.js?v=0224ordersscreenshotimportqa1-20260911"></script>
-<script src="./js/app.js?v=0224ordersscreenshotimportqa2-imagecount-20260911"></script>
-<script src="./js/order-recognition-flow.js?v=0224ordersscreenshotimportqa2-imagecount-20260911"></script>
+<script src="./js/app.js?v=0224ordersscreenshotimportqa3-diagnostic-20260911"></script>
+<script src="./js/order-recognition-flow.js?v=0224ordersscreenshotimportqa3-diagnostic-20260911"></script>
 <script src="./js/order-duplicate-navigation.js?v=0224ordersscreenshotimportqa1-20260911"></script>
 <script src="./js/order-draft-review-i18n.js?v=0224ordersscreenshotimportqa1-20260911"></script>
 <script src="./js/persistence-health.js?v=0220datasafetyp0qa"></script>

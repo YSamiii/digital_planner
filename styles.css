@@ -162,6 +162,7 @@ body[data-theme="sage"] .theme-symbol::before{content:"🌿"}
 .subscription-card .amount{font-size:16px;font-weight:800}.subscription-card .renewal{font-size:11px;color:var(--muted);margin-top:4px}
 .status-active{color:var(--primary)}.status-paused{color:#9b7b3f}.status-cancelled{color:#8a7777}
 .section-note{font-size:11px;color:var(--muted);line-height:1.5;margin:4px 0 10px}
+.order-network-diagnostic{margin-top:10px;padding-top:8px;border-top:1px solid var(--line);color:var(--muted);font-size:11px;line-height:1.4}.order-network-diagnostic summary{cursor:pointer;color:var(--ink);font-weight:600}.order-network-diagnostic p{margin:5px 0;overflow-wrap:anywhere}
 .inline-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;min-width:0}.inline-3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.7fr) minmax(0,1fr);gap:8px;min-width:0}
 @media(max-width:430px){.inline-3{grid-template-columns:1fr 1fr}.inline-3>*:last-child{grid-column:1/-1}}
 
