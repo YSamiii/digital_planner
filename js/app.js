@@ -1,5 +1,5 @@
-window.JOURNAL_BUILD='v0.22.4-orders-screenshot-import-iphone-qa4-network-health-diagnostic-20260911';
-document.documentElement.dataset.runtimeBuild='v0.22.4-orders-screenshot-import-iphone-qa4-network-health-diagnostic-20260911';
+window.JOURNAL_BUILD='v0.22.4-orders-screenshot-import-iphone-qa5-post-diagnostic-20260914';
+document.documentElement.dataset.runtimeBuild='v0.22.4-orders-screenshot-import-iphone-qa5-post-diagnostic-20260914';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.22.4';
