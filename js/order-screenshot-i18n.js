@@ -6,5 +6,7 @@
   Object.assign(en,{exactDuplicate:'An Exact Duplicate Was Found',probableDuplicate:'A Similar Order Was Found',returnToDraft:'Return to Order Draft'});
   Object.assign(zh,{recognizedSeller:'识别到的卖家',matchedExistingSeller:'已匹配现有卖家',possibleMatch:'可能匹配',noMatchingSellerFound:'未找到匹配卖家',chooseExistingSeller:'选择已有卖家',addSeller:'新增卖家'});
   Object.assign(en,{recognizedSeller:'Recognized Seller',matchedExistingSeller:'Matched Existing Seller',possibleMatch:'Possible Match',noMatchingSellerFound:'No Matching Seller Found',chooseExistingSeller:'Choose Existing Seller',addSeller:'Add Seller'});
+  Object.assign(zh,{itemSize:'尺码',itemColorVariant:'颜色/款式',itemNumber:'商品编号'});
+  Object.assign(en,{itemSize:'Size',itemColorVariant:'Color / Variant',itemNumber:'Item Number'});
   window.OrderScreenshotI18n={t(key){const locale=String(document.documentElement.lang||'zh').toLowerCase().startsWith('en')?'en':'zh';return(locale==='en'?en:zh)[key]||key;},items(n){return String(n)+' '+this.t('item')+(String(document.documentElement.lang||'').startsWith('en')&&n!==1?'s':'');}};
 })();
