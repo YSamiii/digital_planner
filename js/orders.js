@@ -2,10 +2,12 @@
   'use strict';
   const STANDARD={direct:[['ordered','已下单'],['preparing','备货中'],['shipped','已发货'],['in_transit','运输中'],['out_for_delivery','派送中'],['delivered','已送达']],pickup:[['ordered','已下单'],['preparing','备货中'],['ready_pickup','待取'],['picked_up','已取']],local:[['ordered','已下单'],['preparing','备货中'],['scheduled','已安排配送'],['out_for_delivery','配送中'],['delivered','已送达']]};
   const uid=p=>`${p}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
-  const labels={draft:'待确认',ordered:'已下单',preparing:'备货中',shipped:'已发货',in_transit:'运输中',out_for_delivery:'派送中',ready_pickup:'待取',ready_for_pickup:'待取',pickup_ready:'待取',delivered:'已送达',picked_up:'已取',cancelled:'已取消',returned:'已退货',not_received_warehouse:'未入库',received_warehouse:'已入库',waiting_pack:'待打包',waiting_payment:'待支付',waiting_dispatch:'待发货',arrived_origin_warehouse:'到达集运仓 / 入仓',waiting_departure:'等待出发',departed:'运输中',arrived_port:'已到港',arrived_airport:'已到机场',arrived_hub:'已到中转点',customs_or_processing:'清关 / 处理中',rail_transit:'铁路运输中',on_rail:'铁路运输中',truck_transit:'卡车运输中',local_transit:'本地运输中',arrived_destination_hub:'到达总仓',destination_hub_processing:'总仓处理中',waiting_pickup_point:'等待送往取货点',at_pickup_point:'已到取货点'};
+  const labels={draft:'待确认',ordered:'已下单',preparing:'备货中',shipped:'已发货',in_transit:'运输中',out_for_delivery:'派送中',ready_pickup:'待取',ready_for_pickup:'待取',pickup_ready:'待取',delivered:'已送达',picked_up:'已取',scheduled:'已安排配送',cancelled:'已取消',returned:'已退货',not_received_warehouse:'未入库',received_warehouse:'已入库',waiting_pack:'待打包',waiting_payment:'待支付',waiting_dispatch:'待发货',arrived_origin_warehouse:'到达集运仓 / 入仓',waiting_departure:'等待出发',departed:'运输中',arrived_port:'已到港',arrived_airport:'已到机场',arrived_hub:'已到中转点',customs_or_processing:'清关 / 处理中',rail_transit:'铁路运输中',on_rail:'铁路运输中',truck_transit:'卡车运输中',local_transit:'本地运输中',arrived_destination_hub:'到达总仓',destination_hub_processing:'总仓处理中',waiting_pickup_point:'等待送往取货点',at_pickup_point:'已到取货点'};
   const serviceLabels={air:'空运',sea:'海运',sea_express:'海运限时达',land:'陆运',custom:'其他'};
   const onwardLabels={rail:'铁路',truck:'卡车',local_delivery:'本地配送',pickup:'取货点',none:'无后续运输',custom:'其他'};
   const fulfillmentLabels={direct:'快递到家',pickup:'自提',forwarding:'集运',local:'商家本地配送',direct_shipping:'快递到家',local_delivery:'商家本地配送'};
+  const englishStatusLabels={draft:'Needs Confirmation',ordered:'Ordered',preparing:'Preparing',shipped:'Shipped',in_transit:'In Transit',out_for_delivery:'Out for Delivery',ready_pickup:'Ready for Pickup',ready_for_pickup:'Ready for Pickup',pickup_ready:'Ready for Pickup',delivered:'Delivered',picked_up:'Picked Up',scheduled:'Scheduled',cancelled:'Cancelled',returned:'Returned'};
+  const englishFulfillmentLabels={direct:'Direct Shipping',pickup:'Pickup',forwarding:'Forwarding',local:'Local Delivery',direct_shipping:'Direct Shipping',local_delivery:'Local Delivery'};
   function routeStages(primary='sea',onward='rail'){
     // A batch is only meaningful once parcels are in the forwarding warehouse.
     // The shared warehouse lifecycle therefore precedes every transport route.
@@ -15,9 +17,10 @@
     return [...new Set([...warehouse,...transport,...transfer,'arrived_destination_hub','destination_hub_processing','waiting_pickup_point','at_pickup_point','picked_up'])];
   }
   function stageLabel(stage,primary){if(stage==='waiting_departure')return primary==='air'?'待起飞':primary==='land'?'待发车':'待开船';if(stage==='departed')return primary==='air'?'已起飞':primary==='land'?'已发车':'已开船';return labels[stage]||'状态未知';}
-  const formatOrderStatus=status=>labels[status]||'状态未知';
+  const ordersLocale=()=>String(document.documentElement.lang||'zh').toLowerCase().startsWith('en')?'en':'zh';
+  const formatOrderStatus=status=>(ordersLocale()==='en'?englishStatusLabels[status]:labels[status])||(ordersLocale()==='en'?'Unknown Status':'状态未知');
   const formatForwardingStage=(stage,service)=>stageLabel(stage,service);
-  const formatFulfillmentType=type=>fulfillmentLabels[type]||'其他';
+  const formatFulfillmentType=type=>(ordersLocale()==='en'?englishFulfillmentLabels[type]:fulfillmentLabels[type])||(ordersLocale()==='en'?'Other':'其他');
   const formatRouteService=service=>serviceLabels[service]||'其他';
   function createOrdersModule(ctx){
     const {qs,esc,iso,getState,save,modal,media,inventory,recurrence,sellers,ordersSaveDiagnostics,ordersPersistenceDiagnostics}=ctx;
@@ -182,5 +185,6 @@
     setTimeout(layoutOrderHeader,0);
     return {render,setOrderSort,clearFilters,openOrderEditor,closeOrderEditor,saveOrder,addOrderItem,removeOrderItem,updateOrderTotal,toggleManualTotal,toggleFulfillment,toggleForwardOverride,orderSellerChanged,orderPickupLocationChanged,batchChanged,orderBatchChanged:batchChanged,orderImageChanged,setFilter,archiveOrder,deleteOrder,requestDeleteOrder,closeOrderDeleteOptions,deleteOrderOnly,reverseAndDeleteOrder,openOrderInventoryReversal,closeBatchEditor,saveBatch,refreshBatchRouteFields,openBatchManagement,closeBatchManagement,openBatchDetail,closeBatchDetail,openBatchFromOrder,openRelatedBatchOrder,editBatchFromDetail,relatedOrders,addManagedBatch,editManagedBatch,deleteManagedBatch,restoreForwardingBatch,addBatchTrackingEvent,updateBatchTrackingEvent,removeBatchTrackingEvent,openRecurringEditor,closeRecurringEditor,saveRecurring,previewRecurring,recurringSellerChanged,toggleRecurring,deleteRecurring,openOrderInventoryImport,closeOrderInventoryImport,importOrderToInventory,confirmRecurringOrder,getEffectiveOrderStatus,isOrderReadyForPickup,normalizeOrderStatus,normalizeOrderStatusFilter,getVisibleOrders,selectOrdersForView,getOrdersFilterState:()=>({chipFilter:filter,statusFilter:qs('#orderStatusFilter')?.value||'',search:qs('#orderSearch')?.value||'',sort:qs('#orderSort')?.value||''}),auditOrdersData,refreshOrdersDataAudit,exportOrdersDataAudit,copyTracking:()=>{},openTracking:()=>{},__inventoryTest:{activeImportEvents,importedQuantity,stageReversal},__forwardingTest:{routeStages,stageLabel,generatedTitle,formatRecurringItem,formatRecurrence,formatOrderStatus,formatForwardingStage,formatFulfillmentType,formatRouteService,serviceLabels,onwardLabels,workflowRank,getEffectiveOrderStatus,isOrderReadyForPickup,normalizeOrderStatus,normalizeOrderStatusFilter},__ordersViewTest:{normalizeOrderSort}};
   }
+  window.OrderDisplayLabels={formatOrderStatus,formatFulfillmentType};
   window.JournalModules=window.JournalModules||{};window.JournalModules.createOrdersModule=createOrdersModule;
 })();
