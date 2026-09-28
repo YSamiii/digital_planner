@@ -1,5 +1,5 @@
-window.JOURNAL_BUILD='v0.23.0-12-week-checkins-iphone-qa1-20260928';
-document.documentElement.dataset.runtimeBuild='v0.23.0-12-week-checkins-iphone-qa1-20260928';
+window.JOURNAL_BUILD='v0.23.0-12-week-checkins-iphone-qa2-20260928';
+document.documentElement.dataset.runtimeBuild='v0.23.0-12-week-checkins-iphone-qa2-20260928';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.23.0';
