@@ -1,5 +1,5 @@
-window.JOURNAL_BUILD='v0.23.0-today-focus-iphone-qa1-20260916';
-document.documentElement.dataset.runtimeBuild='v0.23.0-today-focus-iphone-qa1-20260916';
+window.JOURNAL_BUILD='v0.23.0-12-week-checkins-iphone-qa1-20260928';
+document.documentElement.dataset.runtimeBuild='v0.23.0-12-week-checkins-iphone-qa1-20260928';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.23.0';
@@ -565,6 +565,39 @@ function commitInventoryCandidate(candidate,{itemId,expectedQuantity}={}){
   if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
   state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;return result;
 }
+function commitTwelveWeekCandidate(candidate,{cycleId,weekIndex,expectedDates=[]}={}){
+  const fail=(stage,error)=>{const result={ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false};window.lastPersistenceResult=result;return result;};
+  if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取。为保护现有记录，App 已暂停保存。'));
+  let payload='';try{payload=JSON.stringify(candidate);}catch(error){return fail('JSON.stringify',error);}
+  const commit=window.PersistenceFoundation?.commitCanonical;
+  if(typeof commit!=='function')return fail('quota_safe_commit_unavailable',new Error('统一安全保存路径不可用'));
+  const result=commit({storage:localStorage,key:KEY,payload,verifyReadBack:raw=>{
+    const persisted=JSON.parse(raw);
+    if(!persisted||typeof persisted!=='object'||Array.isArray(persisted))throw new Error('canonical read-back root 无效');
+    if(Number(persisted.schemaVersion)!==12)throw new Error('canonical read-back schemaVersion 无效');
+    const cycle=(persisted.twelveWeekYears||[]).find(entry=>String(entry?.id)===String(cycleId));
+    if(!cycle)throw new Error('canonical read-back 12 Week Year 周期缺失');
+    if(weekIndex!==undefined){
+      const week=cycle.weeks?.[Number(weekIndex)];
+      if(!week||typeof week!=='object')throw new Error('canonical read-back 12 Week Year 周记录缺失');
+      if(week.structuredActions!==undefined){
+        if(!Array.isArray(week.structuredActions))throw new Error('canonical read-back structured actions 无效');
+        const allowed=new Set((expectedDates||[]).map(String));
+        week.structuredActions.forEach(action=>{
+          if(!action||typeof action!=='object'||!String(action.id||''))throw new Error('canonical read-back action id 无效');
+          if(!Number.isInteger(Number(action.weeklyTarget))||Number(action.weeklyTarget)<1||Number(action.weeklyTarget)>7)throw new Error('canonical read-back action target 无效');
+          if(action.checkins!==undefined){
+            if(!action.checkins||typeof action.checkins!=='object'||Array.isArray(action.checkins))throw new Error('canonical read-back action checkins 无效');
+            Object.entries(action.checkins).forEach(([date,done])=>{if(!allowed.has(String(date))||done!==true)throw new Error('canonical read-back action checkin 无效');});
+          }
+        });
+      }
+    }
+    return {schemaVersion:persisted.schemaVersion,twelveWeekYearId:String(cycleId),weekIndex:weekIndex===undefined?null:Number(weekIndex)};
+  }});
+  if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
+  state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;return result;
+}
 function renderAppVersion(){for(const el of document.querySelectorAll('[data-app-version]'))el.textContent=`v${APP_VERSION}`;for(const el of document.querySelectorAll('[data-build-label]'))el.textContent=BUILD_LABEL;}
 const inventoryEditDiagnostics=(()=>{
   const TRACE_KEY='journal-planner-inventory-edit-trace-v0163';
@@ -878,7 +911,7 @@ const inventoryI18n={
   locale:()=>String(document.documentElement.lang||'zh-CN').toLowerCase().startsWith('en')?'en':'zh',
   t(key){const messages={useOne:{zh:'减少一个',en:'Use One'},useOneAria:{zh:'减少一个',en:'Use One'},undo:{zh:'撤销',en:'Undo'},reduced:{zh:'库存已减少 1',en:'Inventory reduced by 1'},cannotUse:{zh:'库存已为 0，无法继续减少。',en:'Inventory is already 0.'},saveFailed:{zh:'保存失败，库存数量未变。请重试。',en:'Save failed. Inventory quantity did not change. Please try again.'},undoFailed:{zh:'撤销保存失败，库存保持减少后的数量。请重试。',en:'Undo could not be saved. Inventory remains reduced. Please try again.'},undoUnavailable:{zh:'这次操作已无法撤销。',en:'This action can no longer be undone.'},addedOrder:{zh:'添加顺序',en:'Added Order'},recentlyUpdated:{zh:'最近更新',en:'Recently Updated'},recentlyAdded:{zh:'最近加入',en:'Recently Added'},nameAZ:{zh:'名称 A–Z',en:'Name'},nameZA:{zh:'名称 Z–A',en:'Name Z–A'},quantityAsc:{zh:'数量少到多',en:'Quantity: Low to High'},quantityDesc:{zh:'数量多到少',en:'Quantity: High to Low'},expiry:{zh:'到期日期',en:'Expiry Date'}};return messages[key]?.[this.locale()]||messages[key]?.zh||key;}
 };
-const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
+const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,commitTwelveWeekCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
 const productivityModule=createProductivityModule(moduleCtx);
 const noSpendModule=createNoSpendModule(moduleCtx);
 const collectionsModule=createCollectionsModule(moduleCtx);
