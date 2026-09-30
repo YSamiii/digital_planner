@@ -1,5 +1,5 @@
-window.JOURNAL_BUILD='v0.23.0-12-week-checkins-iphone-qa2-20260928';
-document.documentElement.dataset.runtimeBuild='v0.23.0-12-week-checkins-iphone-qa2-20260928';
+window.JOURNAL_BUILD='v0.23.0-order-inventory-matching-iphone-qa2-20260930';
+document.documentElement.dataset.runtimeBuild='v0.23.0-order-inventory-matching-iphone-qa2-20260930';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.23.0';
@@ -565,6 +565,15 @@ function commitInventoryCandidate(candidate,{itemId,expectedQuantity}={}){
   if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
   state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;return result;
 }
+function commitOrderInventoryCandidate(candidate,{orderId,expectedInventoryIds=[],expectOrder=true}={}){
+  const fail=(stage,error)=>({ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false});
+  if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取。为保护现有记录，App 已暂停保存。'));
+  let payload='';try{payload=JSON.stringify(candidate);}catch(error){return fail('JSON.stringify',error);}
+  const commit=window.PersistenceFoundation?.commitCanonical;if(typeof commit!=='function')return fail('quota_safe_commit_unavailable',new Error('统一安全保存路径不可用'));
+  const result=commit({storage:localStorage,key:KEY,payload,verifyReadBack:raw=>{const persisted=JSON.parse(raw),hasOrder=(persisted.orders?.items||[]).some(order=>String(order.id)===String(orderId));if(Number(persisted?.schemaVersion)!==12)throw new Error('canonical read-back schemaVersion 无效');if(expectOrder&&!hasOrder)throw new Error('canonical read-back order 缺失');if(!expectOrder&&hasOrder)throw new Error('canonical read-back order 未删除');for(const id of expectedInventoryIds){if(!(persisted.inventory?.items||[]).some(item=>String(item.id)===String(id)))throw new Error('canonical read-back inventory item 缺失');}return {schemaVersion:12,orderId:String(orderId),expectOrder:!!expectOrder};}});
+  if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
+  state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.lastPersistenceResult=result;return result;
+}
 function commitTwelveWeekCandidate(candidate,{cycleId,weekIndex,expectedDates=[]}={}){
   const fail=(stage,error)=>{const result={ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false};window.lastPersistenceResult=result;return result;};
   if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取。为保护现有记录，App 已暂停保存。'));
@@ -911,7 +920,7 @@ const inventoryI18n={
   locale:()=>String(document.documentElement.lang||'zh-CN').toLowerCase().startsWith('en')?'en':'zh',
   t(key){const messages={useOne:{zh:'减少一个',en:'Use One'},useOneAria:{zh:'减少一个',en:'Use One'},undo:{zh:'撤销',en:'Undo'},reduced:{zh:'库存已减少 1',en:'Inventory reduced by 1'},cannotUse:{zh:'库存已为 0，无法继续减少。',en:'Inventory is already 0.'},saveFailed:{zh:'保存失败，库存数量未变。请重试。',en:'Save failed. Inventory quantity did not change. Please try again.'},undoFailed:{zh:'撤销保存失败，库存保持减少后的数量。请重试。',en:'Undo could not be saved. Inventory remains reduced. Please try again.'},undoUnavailable:{zh:'这次操作已无法撤销。',en:'This action can no longer be undone.'},addedOrder:{zh:'添加顺序',en:'Added Order'},recentlyUpdated:{zh:'最近更新',en:'Recently Updated'},recentlyAdded:{zh:'最近加入',en:'Recently Added'},nameAZ:{zh:'名称 A–Z',en:'Name'},nameZA:{zh:'名称 Z–A',en:'Name Z–A'},quantityAsc:{zh:'数量少到多',en:'Quantity: Low to High'},quantityDesc:{zh:'数量多到少',en:'Quantity: High to Low'},expiry:{zh:'到期日期',en:'Expiry Date'}};return messages[key]?.[this.locale()]||messages[key]?.zh||key;}
 };
-const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,commitTwelveWeekCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
+const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,commitTwelveWeekCandidate,commitOrderInventoryCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
 const productivityModule=createProductivityModule(moduleCtx);
 const noSpendModule=createNoSpendModule(moduleCtx);
 const collectionsModule=createCollectionsModule(moduleCtx);
