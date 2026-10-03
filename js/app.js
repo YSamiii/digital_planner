@@ -1,5 +1,5 @@
-window.JOURNAL_BUILD='v0.23.0-order-inventory-matching-iphone-qa2-20260930';
-document.documentElement.dataset.runtimeBuild='v0.23.0-order-inventory-matching-iphone-qa2-20260930';
+window.JOURNAL_BUILD='v0.23.0-no-spend-quick-checkin-iphone-qa4-20261003';
+document.documentElement.dataset.runtimeBuild='v0.23.0-no-spend-quick-checkin-iphone-qa4-20261003';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.23.0';
@@ -574,6 +574,15 @@ function commitOrderInventoryCandidate(candidate,{orderId,expectedInventoryIds=[
   if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
   state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.lastPersistenceResult=result;return result;
 }
+function commitNoSpendCandidate(candidate,{challengeId,date,expectedStatus}={}){
+  const fail=(stage,error)=>({ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false});
+  if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取。为保护现有记录，App 已暂停保存。'));
+  let payload='';try{payload=JSON.stringify(candidate);}catch(error){return fail('JSON.stringify',error);}
+  const commit=window.PersistenceFoundation?.commitCanonical;if(typeof commit!=='function')return fail('quota_safe_commit_unavailable',new Error('统一安全保存路径不可用'));
+  const result=commit({storage:localStorage,key:KEY,payload,verifyReadBack:raw=>{const persisted=JSON.parse(raw),challenge=(persisted.noSpendChallenges||[]).find(item=>String(item.id)===String(challengeId)),log=(challenge?.logs||[]).find(item=>item.date===date);if(Number(persisted?.schemaVersion)!==12)throw new Error('canonical read-back schemaVersion 无效');if(!challenge)throw new Error('canonical read-back challenge 缺失');if(log?.status!==expectedStatus)throw new Error('canonical read-back No Spend status 不匹配');return {schemaVersion:12,challengeId:String(challengeId),date,status:expectedStatus};}});
+  if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
+  state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.lastPersistenceResult=result;return result;
+}
 function commitTwelveWeekCandidate(candidate,{cycleId,weekIndex,expectedDates=[]}={}){
   const fail=(stage,error)=>{const result={ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false};window.lastPersistenceResult=result;return result;};
   if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取。为保护现有记录，App 已暂停保存。'));
@@ -922,7 +931,7 @@ const inventoryI18n={
 };
 const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,commitTwelveWeekCandidate,commitOrderInventoryCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
 const productivityModule=createProductivityModule(moduleCtx);
-const noSpendModule=createNoSpendModule(moduleCtx);
+const noSpendModule=createNoSpendModule({...moduleCtx,commitNoSpendCandidate});
 const collectionsModule=createCollectionsModule(moduleCtx);
 const subscriptionModule=createSubscriptionModule(moduleCtx);
 const inventoryModule=createInventoryModule(moduleCtx);
