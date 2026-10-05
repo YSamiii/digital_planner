@@ -43,15 +43,16 @@
     let number=2;while(`${base} ${number}` in target)number+=1;
     return `${base} ${number}`;
   }
+  function provenanceApi(){const api=window.JournalModules?.legacyJournalProvenance;return api||{oneLineEntry:(group,key)=>(group?.format===2&&group.entries?group.entries:group||{})[key],setOneLineEntry:(group,key,value)=>{const entries=group?.format===2&&group.entries?group.entries:group;entries[key]=value;return value;}};}
   function stage(state,validated,policy='fill_empty'){
     if(!validated?.ok)throw new Error('Cannot stage an invalid One Line a Day backup.');
     if(!['fill_empty','skip_named','append'].includes(policy))throw new Error('Unknown import conflict policy.');
     const next={dailyBlocks:clone(state.dailyBlocks||{}),customBlocks:clone(state.customBlocks||[]),importProvenance:clone(state.importProvenance||{})};
     next.importProvenance[PROVENANCE_KEY]=next.importProvenance[PROVENANCE_KEY]||{};
-    const provenance=next.importProvenance[PROVENANCE_KEY],result={importedDays:0,importedBlocks:0,skippedDuplicates:0,conflicts:0,errors:0};const changedDays=new Set();
+    const provenance=next.importProvenance[PROVENANCE_KEY],api=provenanceApi(),result={importedDays:0,importedBlocks:0,skippedDuplicates:0,conflicts:0,errors:0};const changedDays=new Set();
     validated.entries.forEach(source=>{
       const key=sourceKey(source.date,source.id);
-      if(provenance[key]){result.skippedDuplicates+=1;return;}
+      if(api.oneLineEntry(provenance,key)){result.skippedDuplicates+=1;return;}
       const day=next.dailyBlocks[source.date]=next.dailyBlocks[source.date]||{};
       const hasTitle=Object.prototype.hasOwnProperty.call(day,source.title);
       const existing=hasTitle?String(day[source.title]??''):'';
@@ -59,13 +60,13 @@
       if(!hasTitle||!existing.trim()){
         day[targetTitle]=source.text;
       }else if(existing===source.text){
-        provenance[key]={sourceApp:PROVENANCE_KEY,sourceDate:source.date,sourceBlockId:source.id,targetTitle,matchedExisting:true};result.skippedDuplicates+=1;return;
+        api.setOneLineEntry(provenance,key,{sourceApp:PROVENANCE_KEY,sourceDate:source.date,sourceBlockId:source.id,targetTitle,matchedExisting:true});result.skippedDuplicates+=1;return;
       }else if(policy==='append'){
         targetTitle=importedTitle(day,source.title);day[targetTitle]=source.text;
       }else if(policy==='skip_named'){
         result.skippedDuplicates+=1;return;
       }else{result.conflicts+=1;return;}
-      provenance[key]={sourceApp:PROVENANCE_KEY,sourceDate:source.date,sourceBlockId:source.id,targetTitle};
+      api.setOneLineEntry(provenance,key,{sourceApp:PROVENANCE_KEY,sourceDate:source.date,sourceBlockId:source.id,targetTitle});
       if(targetTitle!=='我的一天'&&!next.customBlocks.includes(targetTitle))next.customBlocks.push(targetTitle);
       result.importedBlocks+=1;changedDays.add(source.date);
     });
