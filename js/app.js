@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='v0.23.0-no-spend-quick-checkin-iphone-qa4-20261003';
-document.documentElement.dataset.runtimeBuild='v0.23.0-no-spend-quick-checkin-iphone-qa4-20261003';
+window.JOURNAL_BUILD='v0.23.1-storage-quota-safety-iphone-qa1-20261005';
+document.documentElement.dataset.runtimeBuild='v0.23.1-storage-quota-safety-iphone-qa1-20261005';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
 const KEY='journal-planner-v091';
-const APP_VERSION='0.23.0';
-const BUILD_LABEL='Today Focus iPhone QA1';
+const APP_VERSION='0.23.1';
+const BUILD_LABEL='Storage Quota Safety iPhone QA1';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 const INVENTORY_SORT_MODES=['added','updated','created','az','za','quantityAsc','quantityDesc','expiry'];
@@ -623,7 +623,7 @@ const inventoryEditDiagnostics=(()=>{
   const copy=v=>v===undefined?undefined:JSON.parse(JSON.stringify(v));
   function itemSnapshot(item){if(!item)return null;return {id:item.id,name:item.name,quantity:item.quantity,location:item.location,notes:item.notes,category:item.category,unit:item.unit,minQuantity:item.minQuantity,expiryDate:item.expiryDate,sourceOrders:copy(item.sourceOrders||[]),history:copy(item.history||[])};}
   function renderCount(){const el=qs('#inventoryEditTraceCount');if(el)el.textContent=`Inventory Edit trace: ${trace.length} events`;}
-  function record(step,payload={}){trace.push({timestamp:new Date().toISOString(),step,...copy(payload)});if(trace.length>300)trace.splice(0,trace.length-300);try{localStorage.setItem(TRACE_KEY,JSON.stringify(trace));}catch(_){}renderCount();}
+  function record(step,payload={}){trace.push({timestamp:new Date().toISOString(),step,...copy(payload)});if(trace.length>80)trace.splice(0,trace.length-80);renderCount();}
   function readPersistedItem(itemId){record('persisted record read-back start',{itemId,persistenceKey:KEY});let persistedItem=null,error='';try{const persisted=JSON.parse(localStorage.getItem(KEY)||'{}');persistedItem=(persisted.inventory?.items||[]).find(item=>String(item.id)===String(itemId))||null;}catch(err){error=String(err?.message||err)}record('persisted record read-back end',{itemId,result:persistedItem?'found':'missing',error,persistedRecord:itemSnapshot(persistedItem)});return persistedItem;}
   function exportTrace(){renderCount();const payload={exportedAt:new Date().toISOString(),appVersion:APP_VERSION,build:document.documentElement.dataset.runtimeBuild,persistenceKey:KEY,traceStorageKey:TRACE_KEY,canonicalSource:'state.inventory.items -> localStorage',trace:copy(trace),renderSourceSnapshot:copy(state.inventory?.items||[]).map(itemSnapshot)};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='inventory-edit-diagnostic-v0162.json';a.click();URL.revokeObjectURL(a.href);}
   return {record,readPersistedItem,exportTrace,itemSnapshot,renderCount,trace};
@@ -635,7 +635,9 @@ const ordersSaveDiagnostics=(()=>{
   const ids=()=>Array.isArray(state.orders?.items)?state.orders.items.map(order=>String(order?.id||'')).filter(Boolean):[];
   const activeIds=()=>Array.isArray(state.orders?.items)?state.orders.items.filter(order=>!order?.archived&&!order?.archivedAt&&!order?.deleted&&!order?.deletedAt&&!order?.tombstoned).map(order=>String(order.id)):[];
   const filterState=()=>({chipFilter:window.getOrdersFilterState?.()?.chipFilter||'',statusFilter:qs('#orderStatusFilter')?.value||'',search:qs('#orderSearch')?.value||'',sort:qs('#orderSort')?.value||''});
-  function persist(){try{localStorage.setItem(TRACE_KEY,JSON.stringify(sessions));}catch(_){}}
+  // Diagnostics stay in this runtime session. Persisting full order drafts and
+  // snapshots competes with canonical data for the same quota.
+  function persist(){}
   function renderCount(){const el=qs('#ordersSaveTraceCount');if(el)el.textContent=`Orders Save trace: ${sessions.reduce((total,session)=>total+(session.events||[]).length,0)} events`}
   function record(step,payload={}){if(!active)return;active.events.push({timestamp:new Date().toISOString(),step,...copy(payload)});persist();renderCount();}
   function begin(payload={}){active={traceId:`orders-save-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,startedAt:new Date().toISOString(),appVersion:APP_VERSION,build:document.documentElement.dataset.runtimeBuild,beforeSaveCanonicalCount:ids().length,beforeSaveCanonicalIDs:ids(),beforeSaveActiveIDs:activeIds(),beforeSaveDraft:copy(payload),events:[]};sessions.push(active);if(sessions.length>30)sessions.splice(0,sessions.length-30);record('save_handler_received',{beforeSaveCanonicalCount:active.beforeSaveCanonicalCount,beforeSaveCanonicalIDs:active.beforeSaveCanonicalIDs,draft:active.beforeSaveDraft,filterState:filterState()});return active.traceId;}
@@ -657,9 +659,11 @@ const ordersPersistenceDiagnostics=(()=>{
   const canonicalIds=()=>Array.isArray(state.orders?.items)?state.orders.items.map(order=>String(order?.id||'')).filter(Boolean):[];
   function approximateStorage(){let bytes=0,keys=[];try{for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i)||'',value=localStorage.getItem(key)||'';const size=byteLength(key)+byteLength(value);bytes+=size;keys.push({key,bytes:size});}}catch(error){return {error:serializeError(error),bytes:null,keys:[]}}return {bytes,keys:keys.sort((a,b)=>b.bytes-a.bytes).slice(0,20)};}
   function serializeError(error){return {name:error?.name||'',message:error?.message||String(error||''),stack:error?.stack||''};}
-  function persist(){try{localStorage.setItem(TRACE_KEY,JSON.stringify(sessions));}catch(_){}}
+  // This trace is exportable on demand, but must not consume persistent quota
+  // during ordinary saves.
+  function persist(){}
   function renderCount(){const el=qs('#ordersPersistenceTraceCount');if(el)el.textContent=`Orders Persistence trace: ${sessions.reduce((total,session)=>total+(session.events||[]).length,0)} events`;}
-  function record(step,payload={}){if(!active)return;active.events.push({timestamp:new Date().toISOString(),step,...copy(payload)});if(active.events.length>500)active.events.splice(0,active.events.length-500);persist();renderCount();}
+  function record(step,payload={}){if(!active)return;active.events.push({timestamp:new Date().toISOString(),step,...copy(payload)});if(active.events.length>80)active.events.splice(0,active.events.length-80);persist();renderCount();}
   function readback(label){let raw=null,parsed=null,error=null;try{raw=localStorage.getItem(KEY);if(raw!==null)parsed=JSON.parse(raw);}catch(exception){error=serializeError(exception);}const rows=Array.isArray(parsed?.orders?.items)?parsed.orders.items:[];record(`readback_${label}`,{checkpoint:label,payloadExists:raw!==null,payloadBytes:raw===null?0:byteLength(raw),parseSuccess:raw===null?false:!error,error,ordersCount:rows.length,savedOrderId:active?.savedOrderId||'',savedOrderFound:!!active?.savedOrderId&&rows.some(order=>String(order?.id)===String(active.savedOrderId))});}
   function scheduleReadbacks(){if(readbacksScheduled||!active)return;readbacksScheduled=true;[0,50,250,1000].forEach(delay=>setTimeout(()=>readback(`${delay}ms`),delay));setTimeout(()=>{if(active)record('writer_window_closed',{durationMs:2000});},2000);}
   function begin(draft={}){readbacksScheduled=false;const stored=localStorage.getItem(KEY),beforeIds=canonicalIds();active={traceId:`orders-persist-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,startedAt:new Date().toISOString(),appVersion:APP_VERSION,build:document.documentElement.dataset.runtimeBuild,persistFunction:'save',storageBackend:'localStorage',persistenceKey:KEY,beforeCanonicalCount:beforeIds.length,beforeCanonicalIDs:beforeIds,existingStoredPayloadBytes:stored===null?0:byteLength(stored),localStorageApproximateTotal:approximateStorage(),draft:copy(draft),events:[]};sessions.push(active);if(sessions.length>20)sessions.splice(0,sessions.length-20);record('persistence_trace_started',{beforeCanonicalCount:active.beforeCanonicalCount,existingStoredPayloadBytes:active.existingStoredPayloadBytes,persistenceKey:KEY});return active.traceId;}
@@ -686,6 +690,24 @@ const stateSizeAudit=(()=>{
   function analyze(label,root){const top=Object.entries(root||{}).map(([key,value])=>({key,bytes:bytes(value),recordCount:count(value),type:type(value)})).sort((a,b)=>(b.bytes||0)-(a.bytes||0));const paths=walk(root,'state').filter(row=>row.path!=='state').sort((a,b)=>(b.bytes||0)-(a.bytes||0)).slice(0,20);const snapshots=Array.isArray(root?.settings?.autoProtection?.snapshots)?root.settings.autoProtection.snapshots:[];const embedded=snapshots.filter(snapshot=>snapshot?.state&&typeof snapshot.state==='object');const nested=embedded.filter(snapshot=>Array.isArray(snapshot.state?.settings?.autoProtection?.snapshots)&&snapshot.state.settings.autoProtection.snapshots.length>0);return {label,totalBytes:bytes(root),topLevel:top,largestPaths:paths,snapshotAudit:{snapshotCount:snapshots.length,embeddedFullStateSnapshotCount:embedded.length,embeddedSnapshotsBytes:bytes(snapshots),nestedSnapshotPayloadCount:nested.length,canonicalContainsFullStateSnapshots:embedded.length>0,recursiveSelfEmbeddingDetected:nested.length>0},contamination:contamination(root),orders:{count:Array.isArray(root?.orders?.items)?root.orders.items.length:0,ids:Array.isArray(root?.orders?.items)?root.orders.items.map(order=>String(order?.id||'')).filter(Boolean):[]}};}
    function run(){let persisted=null,persistError=null,raw=null;try{raw=localStorage.getItem(KEY);persisted=raw?JSON.parse(raw):null;}catch(error){persistError={name:error?.name||'',message:error?.message||String(error),stack:error?.stack||''};}const runtime=analyze('runtime',state),stored=analyze('persisted',persisted||{}),storedIds=new Set(stored.orders.ids),runtimeOnly=runtime.orders.ids.filter(id=>!storedIds.has(id));const result={generatedAt:new Date().toISOString(),readOnly:true,appVersion:APP_VERSION,schemaVersion:state.schemaVersion,persistenceKey:KEY,runtimeTotalBytes:runtime.totalBytes,persistedTotalBytes:raw===null?0:new Blob([raw]).size,deltaBytes:(runtime.totalBytes||0)-(raw===null?0:new Blob([raw]).size),persistedParseError:persistError,runtime,persisted:stored,runtimeOnlyOrderIds:runtimeOnly,diagnosticStorageSeparation:{ordersSaveTraceKey:'journal-planner-orders-save-trace-v0200',ordersPersistenceTraceKey:'journal-planner-orders-persistence-trace-v0200',canonicalStateContainsDiagnosticFields:runtime.contamination.diagnosticKeys.length>0},sourceArchitectureFinding:{automaticSnapshotsStoredInsideCanonicalSettings:false,snapshotPayloadExcludesNestedSnapshotsByImplementation:true,fullStateDuplicateRisk:false,snapshotPayloadStore:'IndexedDB personal-life-hub/snapshots'}};const el=qs('#stateSizeAuditSummary');if(el)el.textContent=`State size: runtime ${Math.round((result.runtimeTotalBytes||0)/1024)} KB · persisted ${Math.round((result.persistedTotalBytes||0)/1024)} KB · Δ ${Math.round((result.deltaBytes||0)/1024)} KB · snapshots ${runtime.snapshotAudit.snapshotCount}`;return result;}
   function exportAudit(){const report=run(),blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='state-size-audit-v0200.json';link.click();URL.revokeObjectURL(link.href);return report;}
+  return {run,exportAudit};
+})();
+/* QA-only and read-only: exports storage measurements without user values. */
+const storageFootprintAudit=(()=>{
+  const safeError=error=>({name:error?.name||'Error',message:error?.message||String(error||'')});
+  async function run(){
+    const analyzer=window.JournalStorageFootprint?.analyzeStorageFootprint;
+    if(typeof analyzer!=='function')throw new Error('Storage footprint analyzer unavailable');
+    const report=analyzer(state,localStorage);
+    let snapshots={count:null,payloadBytes:null,error:null},media={count:null,bytes:null,error:null},estimate={usage:null,quota:null,persisted:null,error:null};
+    try{const rows=await window.snapshotStore?.list?.()||[];snapshots={count:rows.length,payloadBytes:rows.reduce((sum,row)=>sum+Math.max(0,Number(row?.payloadBytes)||0),0),error:null};}catch(error){snapshots.error=safeError(error);}
+    try{const rows=await mediaStore?.list?.()||[];media={count:rows.length,bytes:rows.reduce((sum,row)=>sum+Math.max(0,Number(row?.blob?.size)||0),0),error:null};}catch(error){media.error=safeError(error);}
+    try{const value=await navigator.storage?.estimate?.()||{},persisted=typeof navigator.storage?.persisted==='function'?await navigator.storage.persisted().catch(()=>null):null;estimate={usage:Number.isFinite(value.usage)?value.usage:null,quota:Number.isFinite(value.quota)?value.quota:null,persisted,error:null};}catch(error){estimate.error=safeError(error);}
+    const result={readOnly:true,generatedAt:new Date().toISOString(),schemaVersion:state.schemaVersion,canonical:report.canonical,localStorage:{totalBytes:report.localStorage.totalBytes,diagnosticBytes:report.localStorage.diagnosticBytes,keys:report.localStorage.rows.map(row=>({key:row.key,purpose:row.purpose,bytes:row.bytes,utf16Bytes:row.utf16Bytes}))},topModules:report.topModules.map(row=>({module:row.module,bytes:row.bytes,count:row.count,type:row.type})),largestObjects:report.largestObjects,largeStrings:report.largeStrings,duplicateStructure:report.duplicateStructure,indexedDb:{database:'personal-life-hub',snapshots,media},browserStorageEstimate:estimate};
+    const out=qs('#storageFootprintAuditSummary');if(out)out.textContent=`Canonical ${Math.round(result.canonical.utf8Bytes/1024)} KB · localStorage ${Math.round(result.localStorage.totalBytes/1024)} KB · diagnostics ${Math.round(result.localStorage.diagnosticBytes/1024)} KB · snapshots ${snapshots.count??'N/A'} · media ${media.count??'N/A'}`;
+    return result;
+  }
+  async function exportAudit(){const report=await run(),blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='storage-footprint-audit-v0231.json';link.click();URL.revokeObjectURL(link.href);return report;}
   return {run,exportAudit};
 })();
 function applyTheme(key){
@@ -929,6 +951,23 @@ const inventoryI18n={
   locale:()=>String(document.documentElement.lang||'zh-CN').toLowerCase().startsWith('en')?'en':'zh',
   t(key){const messages={useOne:{zh:'减少一个',en:'Use One'},useOneAria:{zh:'减少一个',en:'Use One'},undo:{zh:'撤销',en:'Undo'},reduced:{zh:'库存已减少 1',en:'Inventory reduced by 1'},cannotUse:{zh:'库存已为 0，无法继续减少。',en:'Inventory is already 0.'},saveFailed:{zh:'保存失败，库存数量未变。请重试。',en:'Save failed. Inventory quantity did not change. Please try again.'},undoFailed:{zh:'撤销保存失败，库存保持减少后的数量。请重试。',en:'Undo could not be saved. Inventory remains reduced. Please try again.'},undoUnavailable:{zh:'这次操作已无法撤销。',en:'This action can no longer be undone.'},addedOrder:{zh:'添加顺序',en:'Added Order'},recentlyUpdated:{zh:'最近更新',en:'Recently Updated'},recentlyAdded:{zh:'最近加入',en:'Recently Added'},nameAZ:{zh:'名称 A–Z',en:'Name'},nameZA:{zh:'名称 Z–A',en:'Name Z–A'},quantityAsc:{zh:'数量少到多',en:'Quantity: Low to High'},quantityDesc:{zh:'数量多到少',en:'Quantity: High to Low'},expiry:{zh:'到期日期',en:'Expiry Date'}};return messages[key]?.[this.locale()]||messages[key]?.zh||key;}
 };
+/* Old troubleshooting traces are non-user, non-canonical data. They must never
+   block a normal save. They remain available in memory for the current session,
+   while quota recovery may remove only this explicit legacy-key allowlist. */
+const diagnosticStorageKeys=new Set([
+  'journal-planner-inventory-edit-trace-v0163',
+  'journal-planner-orders-save-trace-v0200',
+  'journal-planner-orders-persistence-trace-v0200',
+  'journal-planner-project30-checkbox-trace-v0220',
+  'journal-planner-project30-interaction-trace-v0220r4',
+  'journal-planner-dashboard-runtime-trace-v0200',
+  'journal-planner-today-active-challenge-trace-v0200',
+  'journal-planner-today-hide-when-empty-trace-v0200',
+  'journal-planner-snapshot-verification-v0200'
+]);
+window.PersistenceFoundation?.registerQuotaSafeCleanup?.(()=>{
+  return {safe:true,removeKeys:[...diagnosticStorageKeys]};
+},{safeKey:key=>diagnosticStorageKeys.has(String(key))});
 const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,commitTwelveWeekCandidate,commitOrderInventoryCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
 const productivityModule=createProductivityModule(moduleCtx);
 const noSpendModule=createNoSpendModule({...moduleCtx,commitNoSpendCandidate});
@@ -1038,7 +1077,7 @@ function boot(){
     renderAll();
   }catch(err){showBootError(err)}
 }
-Object.assign(window,{openTodayDashboardSettings,moveTodayCard,setTodayCardVisibility,setTodayCardEmptyPolicy,saveTodayDashboardSettings,resetTodayDashboard,selectOneLineImport,prepareOneLineImport,closeOneLineImport,commitOneLineImport,exportInventoryEditDiagnostics:inventoryEditDiagnostics.exportTrace,clearOrdersSaveTrace:ordersSaveDiagnostics.clear,copyOrdersSaveTrace:ordersSaveDiagnostics.copyTrace,exportOrdersSaveTrace:ordersSaveDiagnostics.exportTrace,clearOrdersPersistenceTrace:ordersPersistenceDiagnostics.clear,copyOrdersPersistenceTrace:ordersPersistenceDiagnostics.copyTrace,exportOrdersPersistenceTrace:ordersPersistenceDiagnostics.exportTrace,runStateSizeAudit:stateSizeAudit.run,exportStateSizeAudit:stateSizeAudit.exportAudit,openQuestionLibrary,closeQuestionLibrary,renderQuestionLibrary,addFiveYearQuestion,editFiveYearQuestion,renderFiveYearJournal,setFiveYearDate,shiftFiveYearDay,openDailyQuestion,syncDailyQuestionText,closeDailyQuestion,saveDailyQuestion,toggleGrowthMilestone,openGrowthMilestone,closeGrowthMilestone,saveGrowthMilestone,renderGrowthJournal,selectLegacyFiveYearImport,prepareLegacyFiveYearImport,closeLegacyFiveYearImport,commitLegacyFiveYearImport,openDailyBlockEditor,closeDailyBlockEditor,saveDailyBlockEditor,openLegacyJournalEditor,closeLegacyJournalEditor,saveLegacyJournalEditor,openFiveYearRecordEditor,setGrowthDateFilter});
+Object.assign(window,{openTodayDashboardSettings,moveTodayCard,setTodayCardVisibility,setTodayCardEmptyPolicy,saveTodayDashboardSettings,resetTodayDashboard,selectOneLineImport,prepareOneLineImport,closeOneLineImport,commitOneLineImport,exportInventoryEditDiagnostics:inventoryEditDiagnostics.exportTrace,clearOrdersSaveTrace:ordersSaveDiagnostics.clear,copyOrdersSaveTrace:ordersSaveDiagnostics.copyTrace,exportOrdersSaveTrace:ordersSaveDiagnostics.exportTrace,clearOrdersPersistenceTrace:ordersPersistenceDiagnostics.clear,copyOrdersPersistenceTrace:ordersPersistenceDiagnostics.copyTrace,exportOrdersPersistenceTrace:ordersPersistenceDiagnostics.exportTrace,runStateSizeAudit:stateSizeAudit.run,exportStateSizeAudit:stateSizeAudit.exportAudit,runStorageFootprintAudit:storageFootprintAudit.run,exportStorageFootprintAudit:storageFootprintAudit.exportAudit,openQuestionLibrary,closeQuestionLibrary,renderQuestionLibrary,addFiveYearQuestion,editFiveYearQuestion,renderFiveYearJournal,setFiveYearDate,shiftFiveYearDay,openDailyQuestion,syncDailyQuestionText,closeDailyQuestion,saveDailyQuestion,toggleGrowthMilestone,openGrowthMilestone,closeGrowthMilestone,saveGrowthMilestone,renderGrowthJournal,selectLegacyFiveYearImport,prepareLegacyFiveYearImport,closeLegacyFiveYearImport,commitLegacyFiveYearImport,openDailyBlockEditor,closeDailyBlockEditor,saveDailyBlockEditor,openLegacyJournalEditor,closeLegacyJournalEditor,saveLegacyJournalEditor,openFiveYearRecordEditor,setGrowthDateFilter});
 [
  'go','backPage','openEntry','closeEntry','saveEntry','openDate','shift','mtab',
  'editLong','closeLong','saveLong','applyTheme','exportData','importData','addTodayBlock','removeTodayBlock','addCustomBlockSetting','deleteCustomBlockSetting','jumpToMonth','setRecordFilter','setRecordBlockFilter','toggleFavorite','openFavoriteTemplate','createCustomTemplate','closeCustomTemplateModal','saveCustomTemplate','openCustomTemplateInstance','printSelectedPage',

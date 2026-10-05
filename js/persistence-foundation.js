@@ -12,26 +12,39 @@
    * Cleanup registrations are deliberately constrained: the canonical key,
    * snapshots, and forensic/recovery evidence may never be removed here.
    */
-  function registerQuotaSafeCleanup(handler){
+  function registerQuotaSafeCleanup(handler,options={}){
     if(typeof handler!=='function')throw new Error('Quota cleanup handler must be a function');
-    quotaCleanupHandlers.push(handler);
-    return ()=>{const index=quotaCleanupHandlers.indexOf(handler);if(index>=0)quotaCleanupHandlers.splice(index,1);};
+    const safeKey=typeof options.safeKey==='function'?options.safeKey:null;
+    const registration={handler,safeKey};
+    quotaCleanupHandlers.push(registration);
+    return ()=>{const index=quotaCleanupHandlers.indexOf(registration);if(index>=0)quotaCleanupHandlers.splice(index,1);};
   }
-  function allowedCleanup(result,key){
+  function cleanupKeys(result){return Array.isArray(result?.removeKeys)?result.removeKeys:(Array.isArray(result?.removedKeys)?result.removedKeys:[]);}
+  function allowedCleanup(result,key,safeKey){
     if(!result||result.safe!==true)return false;
-    const removed=Array.isArray(result.removedKeys)?result.removedKeys:[];
+    const removed=cleanupKeys(result);
     return removed.every(item=>{
       const candidate=String(item||'');
-      return candidate!==String(key) && /^journal-planner-transient-/.test(candidate);
+      return candidate!==String(key) && (safeKey?.(candidate)===true || /^journal-planner-transient-/.test(candidate));
     });
   }
   function runCompactRetry(context){
     const actions=[];
-    for(const handler of quotaCleanupHandlers){
+    for(const registration of quotaCleanupHandlers){
       let result;
-      try{result=handler({...context,attempt:'compact_retry'});}catch(error){actions.push({safe:false,error:String(error?.message||error)});continue;}
-      if(!allowedCleanup(result,context.key)){actions.push({safe:false,rejected:true});continue;}
-      actions.push({safe:true,removedKeys:[...(result.removedKeys||[])],releasedBytes:Number(result.releasedBytes||0)});
+      // A handler only nominates keys. The foundation removes them after the
+      // allowlist check, preventing a handler from deleting business records.
+      try{result=registration.handler({key:context.key,payload:context.payload,candidateBytes:context.candidateBytes,attempt:'compact_retry'});}catch(error){actions.push({safe:false,error:String(error?.message||error)});continue;}
+      if(!allowedCleanup(result,context.key,registration.safeKey)){actions.push({safe:false,rejected:true});continue;}
+      const removedKeys=[];let releasedBytes=0;
+      for(const candidate of cleanupKeys(result)){
+        const raw=context.storage.getItem(candidate);
+        if(raw===null)continue;
+        releasedBytes+=byteLength(raw);
+        context.storage.removeItem(candidate);
+        removedKeys.push(candidate);
+      }
+      actions.push({safe:true,removedKeys,releasedBytes});
     }
     // A retry is still safe when there is no approved transient artifact: it
     // does not delete records, snapshots, evidence, or the candidate.

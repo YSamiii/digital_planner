@@ -4,7 +4,9 @@
     const {qs,esc,iso,getState,save,commitTwelveWeekCandidate,modal}=ctx;let challengeEditId='',twyEditId='',activeCycleId='',activeWeekIndex=0,twyStructuredMode=false,twyActionDraft=[],twyMigrationDraft=[];
     const CHECKBOX_TRACE_KEY='journal-planner-project30-checkbox-trace-v0220';
     let checkboxTrace=(()=>{try{return JSON.parse(localStorage.getItem(CHECKBOX_TRACE_KEY)||'{"events":[]}');}catch(_){return {events:[]};}})();
-    function traceCheckbox(step,data={}){const event={at:new Date().toISOString(),step,...data};checkboxTrace.events=[...(checkboxTrace.events||[]),event].slice(-120);try{localStorage.setItem(CHECKBOX_TRACE_KEY,JSON.stringify(checkboxTrace));}catch(_){}return event;}
+    // Keep optional diagnostics in-memory so normal challenge check-ins never
+    // consume storage reserved for canonical user data.
+    function traceCheckbox(step,data={}){const event={at:new Date().toISOString(),step,...data};checkboxTrace.events=[...(checkboxTrace.events||[]),event].slice(-80);return event;}
     function challengeSnapshot(challengeId,date,ruleId){const challenge=getState().challenges.find(item=>String(item.id)===String(challengeId)),log=challenge?.dailyLogs?.[date]||{};return {challengeId,date,ruleId,canonicalValue:log[ruleId],canonicalValueType:typeof log[ruleId],log:JSON.parse(JSON.stringify(log))};}
     const uid=p=>`${p}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
     const parseDate=v=>v?new Date(v+'T12:00:00'):new Date();
