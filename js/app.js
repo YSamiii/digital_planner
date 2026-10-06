@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='v0.23.1-storage-quota-safety-iphone-qa1-20261005';
-document.documentElement.dataset.runtimeBuild='v0.23.1-storage-quota-safety-iphone-qa1-20261005';
-const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter} = window.JournalModules || {};
+window.JOURNAL_BUILD='v0.23.4-today-focus-pickup-grouping-production-candidate-20261006';
+document.documentElement.dataset.runtimeBuild='v0.23.4-today-focus-pickup-grouping-production-candidate-20261006';
+const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createLegacyJournalPayloadStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter, createLegacyJournalPayloadManager, analyzeLegacyJournalFootprint} = window.JournalModules || {};
 const KEY='journal-planner-v091';
-const APP_VERSION='0.23.1';
-const BUILD_LABEL='Storage Quota Safety iPhone QA1';
+const APP_VERSION='0.23.4';
+const BUILD_LABEL='Today Focus Pickup Grouping Production Candidate';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 const INVENTORY_SORT_MODES=['added','updated','created','az','za','quantityAsc','quantityDesc','expiry'];
@@ -699,12 +699,14 @@ const storageFootprintAudit=(()=>{
     const analyzer=window.JournalStorageFootprint?.analyzeStorageFootprint;
     if(typeof analyzer!=='function')throw new Error('Storage footprint analyzer unavailable');
     const report=analyzer(state,localStorage);
-    let snapshots={count:null,payloadBytes:null,error:null},media={count:null,bytes:null,error:null},estimate={usage:null,quota:null,persisted:null,error:null};
+    let snapshots={count:null,payloadBytes:null,error:null},media={count:null,bytes:null,error:null},legacyPayloads={count:null,bytes:null,error:null},estimate={usage:null,quota:null,persisted:null,error:null};
     try{const rows=await window.snapshotStore?.list?.()||[];snapshots={count:rows.length,payloadBytes:rows.reduce((sum,row)=>sum+Math.max(0,Number(row?.payloadBytes)||0),0),error:null};}catch(error){snapshots.error=safeError(error);}
     try{const rows=await mediaStore?.list?.()||[];media={count:rows.length,bytes:rows.reduce((sum,row)=>sum+Math.max(0,Number(row?.blob?.size)||0),0),error:null};}catch(error){media.error=safeError(error);}
+    try{const rows=await legacyJournalPayloadStore?.list?.()||[];legacyPayloads={count:rows.length,bytes:rows.reduce((sum,row)=>sum+new Blob([JSON.stringify(row)]).size,0),error:null};}catch(error){legacyPayloads.error=safeError(error);}
     try{const value=await navigator.storage?.estimate?.()||{},persisted=typeof navigator.storage?.persisted==='function'?await navigator.storage.persisted().catch(()=>null):null;estimate={usage:Number.isFinite(value.usage)?value.usage:null,quota:Number.isFinite(value.quota)?value.quota:null,persisted,error:null};}catch(error){estimate.error=safeError(error);}
-    const result={readOnly:true,generatedAt:new Date().toISOString(),schemaVersion:state.schemaVersion,canonical:report.canonical,localStorage:{totalBytes:report.localStorage.totalBytes,diagnosticBytes:report.localStorage.diagnosticBytes,keys:report.localStorage.rows.map(row=>({key:row.key,purpose:row.purpose,bytes:row.bytes,utf16Bytes:row.utf16Bytes}))},topModules:report.topModules.map(row=>({module:row.module,bytes:row.bytes,count:row.count,type:row.type})),largestObjects:report.largestObjects,largeStrings:report.largeStrings,duplicateStructure:report.duplicateStructure,indexedDb:{database:'personal-life-hub',snapshots,media},browserStorageEstimate:estimate};
-    const out=qs('#storageFootprintAuditSummary');if(out)out.textContent=`Canonical ${Math.round(result.canonical.utf8Bytes/1024)} KB · localStorage ${Math.round(result.localStorage.totalBytes/1024)} KB · diagnostics ${Math.round(result.localStorage.diagnosticBytes/1024)} KB · snapshots ${snapshots.count??'N/A'} · media ${media.count??'N/A'}`;
+    const legacyJournal=typeof analyzeLegacyJournalFootprint==='function'?analyzeLegacyJournalFootprint(state):null;
+    const result={readOnly:true,generatedAt:new Date().toISOString(),schemaVersion:state.schemaVersion,canonical:report.canonical,localStorage:{totalBytes:report.localStorage.totalBytes,diagnosticBytes:report.localStorage.diagnosticBytes,keys:report.localStorage.rows.map(row=>({key:row.key,purpose:row.purpose,bytes:row.bytes,utf16Bytes:row.utf16Bytes}))},topModules:report.topModules.map(row=>({module:row.module,bytes:row.bytes,count:row.count,type:row.type})),largestObjects:report.largestObjects,largeStrings:report.largeStrings,duplicateStructure:report.duplicateStructure,legacyJournal,indexedDb:{database:'personal-life-hub',snapshots,media,legacyJournalPayloads},browserStorageEstimate:estimate};
+    const out=qs('#storageFootprintAuditSummary');if(out)out.textContent=`Canonical ${Math.round(result.canonical.utf8Bytes/1024)} KB · legacy index ${Math.round((legacyJournal?.totalBytes||0)/1024)} KB · legacy payload ${Math.round((legacyPayloads.bytes||0)/1024)} KB · localStorage ${Math.round(result.localStorage.totalBytes/1024)} KB · diagnostics ${Math.round(result.localStorage.diagnosticBytes/1024)} KB · snapshots ${snapshots.count??'N/A'}`;
     return result;
   }
   async function exportAudit(){const report=await run(),blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='storage-footprint-audit-v0231.json';link.click();URL.revokeObjectURL(link.href);return report;}
@@ -889,11 +891,11 @@ function saveLong(){
 }
 function renderPhotos(){qs('#photoGrid').innerHTML=Array.from({length:28},(_,i)=>`<div class="photo-ph">${i%6===0?'✦':''}</div>`).join('')}
 async function exportData(){
-  try{const media=await mediaStore.exportForBackup();const blob=new Blob([JSON.stringify({version:12,schemaVersion:state.schemaVersion,appVersion:APP_VERSION,backupVersion:1,exportedAt:new Date().toISOString(),state,media},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='journal-planner-backup-v0190.json';a.click();URL.revokeObjectURL(a.href)}catch(e){alert('备份失败：'+(e.message||'媒体数据无法导出'))}
+  try{const media=await mediaStore.exportForBackup(),legacyJournalPayloadsForBackup=await legacyJournalPayloads.exportForBackup(state.legacyJournalRecords||[]),importProvenancePayloads=await legacyJournalPayloads.exportOneLineProvenanceForBackup(state.importProvenance?.one_line_a_day);const blob=new Blob([JSON.stringify({version:12,schemaVersion:state.schemaVersion,appVersion:APP_VERSION,backupVersion:2,exportedAt:new Date().toISOString(),state,media,legacyJournalPayloads:legacyJournalPayloadsForBackup,importProvenancePayloads},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='journal-planner-backup-v0233.json';a.click();URL.revokeObjectURL(a.href)}catch(e){alert('备份失败：'+(e.message||'历史日记 payload、导入来源或媒体无法导出'))}
 }
 function importData(ev){
   const f=ev.target.files[0];if(!f)return;const r=new FileReader();
-  r.onload=async()=>{try{const d=JSON.parse(r.result),candidate=d.state||d;if(!candidate||typeof candidate!=='object')throw new Error('invalid state');candidate.settings=candidate.settings||{theme:'sage'};candidate.inventory=candidate.inventory&&typeof candidate.inventory==='object'?candidate.inventory:{items:[],categories:[],locations:[]};candidate.inventory.items=Array.isArray(candidate.inventory.items)?candidate.inventory.items:[];candidate.inventory.categories=Array.isArray(candidate.inventory.categories)?candidate.inventory.categories:[];candidate.inventory.locations=Array.isArray(candidate.inventory.locations)?candidate.inventory.locations:[];candidate.orders=candidate.orders&&typeof candidate.orders==='object'?candidate.orders:{items:[],sellers:[],pickupLocations:[],recurring:[],forwardingBatches:[]};['items','sellers','pickupLocations','recurring','forwardingBatches'].forEach(k=>candidate.orders[k]=Array.isArray(candidate.orders[k])?candidate.orders[k]:[]);await mediaStore.restoreFromBackup(d.media||[]);state=candidate;state.schemaVersion=12;const result=save();if(!result?.ok)return result;applyTheme(state.settings.theme);renderAll();alert('导入完成');return result}catch(e){alert('备份文件无效或媒体恢复失败')}};
+  r.onload=async()=>{try{const d=JSON.parse(r.result),candidate=d.state||d;if(!candidate||typeof candidate!=='object')throw new Error('invalid state');candidate.settings=candidate.settings||{theme:'sage'};candidate.inventory=candidate.inventory&&typeof candidate.inventory==='object'?candidate.inventory:{items:[],categories:[],locations:[]};candidate.inventory.items=Array.isArray(candidate.inventory.items)?candidate.inventory.items:[];candidate.inventory.categories=Array.isArray(candidate.inventory.categories)?candidate.inventory.categories:[];candidate.orders=candidate.orders&&typeof candidate.orders==='object'?candidate.orders:{items:[],sellers:[],pickupLocations:[],recurring:[],forwardingBatches:[]};['items','sellers','pickupLocations','recurring','forwardingBatches'].forEach(k=>candidate.orders[k]=Array.isArray(candidate.orders[k])?candidate.orders[k]:[]);const refs=new Set((candidate.legacyJournalRecords||[]).map(record=>String(record?.payloadRef||'')).filter(Boolean)),payloads=Array.isArray(d.legacyJournalPayloads)?d.legacyJournalPayloads:[],payloadIds=new Set(payloads.map(payload=>String(payload?.id||'')));for(const id of refs)if(!payloadIds.has(id))throw new Error(`legacy journal payload missing: ${id}`);const oneLine=candidate.importProvenance?.one_line_a_day,needsProvenancePayload=oneLine?.format===2&&oneLine?.payloadRef,provenancePayloads=Array.isArray(d.importProvenancePayloads)?d.importProvenancePayloads:[];if(needsProvenancePayload&&!provenancePayloads.some(payload=>payload?.id===oneLine.payloadRef))throw new Error('one line provenance payload missing');await mediaStore.restoreFromBackup(d.media||[]);await legacyJournalPayloads.restoreFromBackup(payloads);await legacyJournalPayloads.restoreOneLineProvenanceFromBackup(provenancePayloads);state=candidate;state.schemaVersion=12;const result=save();if(!result?.ok)return result;applyTheme(state.settings.theme);renderAll();alert('导入完成');return result}catch(e){alert('备份文件无效、历史日记 payload / 导入来源缺失或媒体恢复失败')}};
   r.readAsText(f)
 }
 let oneLineImportDraft=null;
@@ -923,7 +925,7 @@ function commitOneLineImport(){
     alert(`导入完成：\n${staged.result.importedDays} days\n${staged.result.importedBlocks} blocks\n跳过重复：${staged.result.skippedDuplicates}\n冲突：${staged.result.conflicts}\n错误：${staged.result.errors}`);
   }catch(error){alert(`导入失败，未修改当前数据：${error.message||error}`)}
 }
-if(!createProductivityModule||!createNoSpendModule||!createCollectionsModule||!createSubscriptionModule||!createMediaStore||!createInventoryModule||!createRecurrenceHelper||!createSellersModule||!createOrdersModule||!createTodayDashboard||!createOneLineImport||!createTimelineFilter||!createFiveYearJournal||!createHistoricalDualImporter){
+if(!createProductivityModule||!createNoSpendModule||!createCollectionsModule||!createSubscriptionModule||!createMediaStore||!createLegacyJournalPayloadStore||!createLegacyJournalPayloadManager||!createInventoryModule||!createRecurrenceHelper||!createSellersModule||!createOrdersModule||!createTodayDashboard||!createOneLineImport||!createTimelineFilter||!createFiveYearJournal||!createHistoricalDualImporter){
   throw new Error('Required feature module failed to load. Please run refresh-clean-baseline.html.');
 }
 const modalController=(()=>{
@@ -946,6 +948,35 @@ const modalController=(()=>{
 })();
 const mediaStore=createMediaStore();
 window.snapshotStore=createSnapshotStore?.();
+const legacyJournalPayloadStore=createLegacyJournalPayloadStore();
+const legacyJournalPayloads=createLegacyJournalPayloadManager(legacyJournalPayloadStore);
+let legacyJournalMigrationRunning=false;
+async function migrateLegacyJournalPayloads(){
+  if(legacyJournalMigrationRunning||persistenceSafeMode)return {ok:false,reason:'busy_or_safe_mode'};
+  const records=Array.isArray(state.legacyJournalRecords)?state.legacyJournalRecords:[];
+  const oneLineGroup=state.importProvenance?.one_line_a_day;
+  const needsRecords=records.some(record=>!record?.payloadRef&&legacyJournalPayloads.needsPayload(record));
+  const needsOneLine=!!oneLineGroup&&oneLineGroup.format!==2;
+  if(!needsRecords&&!needsOneLine)return {ok:true,skipped:true};
+  legacyJournalMigrationRunning=true;
+  const beforeRecords=JSON.stringify(records),beforeProvenance=JSON.stringify(state.importProvenance||{});
+  try{
+    const staged=await legacyJournalPayloads.stageCompaction(records,{batchSize:25}),compactOneLine=needsOneLine?await legacyJournalPayloads.stageOneLineProvenance(oneLineGroup):null;
+    if(JSON.stringify(state.legacyJournalRecords)!==beforeRecords||JSON.stringify(state.importProvenance||{})!==beforeProvenance)return {ok:false,reason:'state_changed_during_migration'};
+    const candidate=JSON.parse(JSON.stringify(state));
+    candidate.legacyJournalRecords=staged.records;
+    if(needsOneLine){candidate.importProvenance=candidate.importProvenance||{};candidate.importProvenance.one_line_a_day=compactOneLine;}
+    state=candidate;
+    const result=save();
+    if(!result?.ok)return {ok:false,reason:'canonical_commit_failed',result};
+    renderAll();
+    return {ok:true,payloadCount:staged.payloadCount};
+  }catch(error){
+    console.warn('legacy journal payload migration deferred',error);
+    return {ok:false,reason:'payload_write_or_verify_failed',errorName:error?.name||'Error'};
+  }finally{legacyJournalMigrationRunning=false;}
+}
+function scheduleLegacyJournalPayloadMigration(){setTimeout(()=>{migrateLegacyJournalPayloads();},0);}
 const recurrence=createRecurrenceHelper();
 const inventoryI18n={
   locale:()=>String(document.documentElement.lang||'zh-CN').toLowerCase().startsWith('en')?'en':'zh',
@@ -1033,10 +1064,10 @@ function commitHistoricalDualImport(){
   const snapshots=before.settings?.autoProtection?.snapshots||[],gate=health.snapshotHealth(candidate,snapshots);if(!gate.allowed){historicalFailure(`Snapshot Health Gate 拒绝导入：${gate.reason}`);return;}
   let payload;try{payload=JSON.stringify(candidate);}catch(error){historicalFailure(`无法生成候选保存内容：${error.message||error}`);return;}
   const commit=window.PersistenceFoundation?.commitCanonical;if(typeof commit!=='function'){historicalFailure('统一安全保存路径不可用；没有写入任何数据。');return;}
-  const expected={legacyCount:(before.legacyJournalRecords||[]).length+staged.preview.manifest.insert,provenanceCount:Object.keys(before.importProvenance?.one_line_a_day||{}).length+staged.preview.oneLine.insert+staged.preview.oneLine.exactDuplicate+staged.preview.oneLine.approvedReplace};
+  const expected={legacyCount:(before.legacyJournalRecords||[]).length+staged.preview.manifest.insert,provenanceCount:(window.JournalModules?.legacyJournalProvenance?.oneLineEntryCount?.(before.importProvenance?.one_line_a_day||{})||Object.keys(before.importProvenance?.one_line_a_day||{}).length)+staged.preview.oneLine.insert+staged.preview.oneLine.exactDuplicate+staged.preview.oneLine.approvedReplace};
   const result=commit({storage:localStorage,key:KEY,payload,verifyReadBack:raw=>{const persisted=JSON.parse(raw),verified=historicalDualImporter.validateCandidate(persisted,expected);if(!verified.ok)throw new Error(verified.errors.join('；'));return {schemaVersion:persisted.schemaVersion,integrity:'pass'};}});
   if(!result?.ok){historicalFailure(`保存失败；当前数据与预览仍保留：${result?.message||'未知错误'}`);return;}
-  state=candidate;lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;renderAll();historicalDualDraft=null;modalController.close('historicalDualImportModal');alert(`历史日记导入完成：manifest 新增 ${staged.preview.manifest.insert}；One Line 新增 ${staged.preview.oneLine.insert}；明确替换 ${staged.preview.oneLine.approvedReplace}。`);
+  state=candidate;lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;renderAll();scheduleLegacyJournalPayloadMigration();historicalDualDraft=null;modalController.close('historicalDualImportModal');alert(`历史日记导入完成：manifest 新增 ${staged.preview.manifest.insert}；One Line 新增 ${staged.preview.oneLine.insert}；明确替换 ${staged.preview.oneLine.approvedReplace}。`);
 }
 Object.assign(window,productivityModule,noSpendModule,collectionsModule,subscriptionModule,inventoryModule,sellersModule,ordersModule);
 bindHistoricalDualImportEntry();
@@ -1075,6 +1106,7 @@ function boot(){
     if(!persistenceSafeMode&&(loadResult.status==='new'||String(loadResult.source||'').startsWith('legacy:')))save();
     renderPersistenceSafeModeWarning();
     renderAll();
+    scheduleLegacyJournalPayloadMigration();
   }catch(err){showBootError(err)}
 }
 Object.assign(window,{openTodayDashboardSettings,moveTodayCard,setTodayCardVisibility,setTodayCardEmptyPolicy,saveTodayDashboardSettings,resetTodayDashboard,selectOneLineImport,prepareOneLineImport,closeOneLineImport,commitOneLineImport,exportInventoryEditDiagnostics:inventoryEditDiagnostics.exportTrace,clearOrdersSaveTrace:ordersSaveDiagnostics.clear,copyOrdersSaveTrace:ordersSaveDiagnostics.copyTrace,exportOrdersSaveTrace:ordersSaveDiagnostics.exportTrace,clearOrdersPersistenceTrace:ordersPersistenceDiagnostics.clear,copyOrdersPersistenceTrace:ordersPersistenceDiagnostics.copyTrace,exportOrdersPersistenceTrace:ordersPersistenceDiagnostics.exportTrace,runStateSizeAudit:stateSizeAudit.run,exportStateSizeAudit:stateSizeAudit.exportAudit,runStorageFootprintAudit:storageFootprintAudit.run,exportStorageFootprintAudit:storageFootprintAudit.exportAudit,openQuestionLibrary,closeQuestionLibrary,renderQuestionLibrary,addFiveYearQuestion,editFiveYearQuestion,renderFiveYearJournal,setFiveYearDate,shiftFiveYearDay,openDailyQuestion,syncDailyQuestionText,closeDailyQuestion,saveDailyQuestion,toggleGrowthMilestone,openGrowthMilestone,closeGrowthMilestone,saveGrowthMilestone,renderGrowthJournal,selectLegacyFiveYearImport,prepareLegacyFiveYearImport,closeLegacyFiveYearImport,commitLegacyFiveYearImport,openDailyBlockEditor,closeDailyBlockEditor,saveDailyBlockEditor,openLegacyJournalEditor,closeLegacyJournalEditor,saveLegacyJournalEditor,openFiveYearRecordEditor,setGrowthDateFilter});
@@ -1196,7 +1228,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0230todayfocusqa1-20260916').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v=0234todayfocuspickupgroupingprod-20261006').catch(err=>console.warn('SW registration failed',err));
   });
 }
 
@@ -1305,7 +1337,7 @@ function v0190FinalForwardingUI(){
 const v0190FinalOpenOrder=window.openOrderEditor;window.openOrderEditor=function(id=''){v0190FinalOpenOrder(id);qs('#orderModal').dataset.v0190FinalOrderId=id||'';v0190FinalForwardingUI();};
 const v0190FinalBatchChanged=window.orderBatchChanged;window.orderBatchChanged=function(){v0190FinalBatchChanged();setTimeout(v0190FinalForwardingUI,0);};
 const v0190FinalToggleFulfillment=window.toggleOrderFulfillment;window.toggleOrderFulfillment=function(){v0190FinalToggleFulfillment();setTimeout(v0190FinalForwardingUI,0);};
-const v0190FinalSaveOrder=window.saveOrder;window.saveOrder=async function(){const id=qs('#orderModal')?.dataset.v0190FinalOrderId||'',previous=state.orders?.items?.find(item=>item.id===id),previousForward=JSON.parse(JSON.stringify(previous?.forwarding||{})),pre=qs('#orderPreShipmentStage')?.value||previousForward.preForwardingStage||'ordered',independent=qs('#orderIndependentStatus')?.value||'',batchId=qs('#orderBatch')?.value||'',before=new Set((state.orders?.items||[]).map(item=>item.id));const initialResult=await v0190FinalSaveOrder();if(initialResult?.ok===false)return initialResult;const order=id?(state.orders?.items||[]).find(item=>item.id===id):(state.orders?.items||[]).find(item=>!before.has(item.id));if(!order?.forwarding)return initialResult;const f=order.forwarding;f.overrideEnabled=false;f.independentStatus=batchId?independent:'';if(batchId){const entering=!previousForward.batchId||previousForward.batchId!==batchId;const previousStage=previousForward.preForwardingStage||pre;if(entering&&['','ordered','not_received_warehouse'].includes(previousStage))f.preForwardingStage='received_warehouse';else f.preForwardingStage=previousStage||'received_warehouse';}else{f.preForwardingStage=previousForward.preForwardingStage||pre||'ordered';}const finalResult=save();if(finalResult.ok)window.renderOrders?.();return finalResult;};
+const v0190FinalSaveOrder=window.saveOrder;window.saveOrder=async function(){const id=qs('#orderModal')?.dataset.v0190FinalOrderId||'',previous=state.orders?.items?.find(item=>item.id===id),previousForward=JSON.parse(JSON.stringify(previous?.forwarding||{})),pre=qs('#orderPreShipmentStage')?.value||previousForward.preForwardingStage||'ordered',independent=qs('#orderIndependentStatus')?.value||'',batchId=qs('#orderBatch')?.value||'',before=new Set((state.orders?.items||[]).map(item=>item.id));const initialResult=await v0190FinalSaveOrder();if(initialResult?.ok===false)return initialResult;const order=id?(state.orders?.items||[]).find(item=>item.id===id):(state.orders?.items||[]).find(item=>!before.has(item.id));if(!order?.forwarding)return initialResult;const f=order.forwarding;f.overrideEnabled=false;f.independentStatus=batchId?'':(previousForward.independentStatus||independent);if(batchId){const entering=!previousForward.batchId||previousForward.batchId!==batchId;const previousStage=previousForward.preForwardingStage||pre;if(entering&&['','ordered','not_received_warehouse'].includes(previousStage))f.preForwardingStage='received_warehouse';else f.preForwardingStage=previousStage||'received_warehouse';}else{f.preForwardingStage=previousForward.preForwardingStage||pre||'ordered';}const finalResult=save();if(finalResult.ok)window.renderOrders?.();return finalResult;};
 const v0200OrdersTraceSaveOrder=window.saveOrder;window.saveOrder=async function(...args){const draft={source:'global saveOrder',editorOrderId:qs('#orderModal')?.dataset.v0190FinalOrderId||'',seller:qs('#orderSeller')?.value||'',fulfillmentType:qs('#orderFulfillment')?.value||'',status:qs('#orderStatus')?.value||'',items:[...document.querySelectorAll('#orderItems [data-order-item]')].map(row=>({id:row.dataset.itemId||'',name:row.querySelector('.oi-name')?.value||'',quantity:row.querySelector('.oi-qty')?.value||''})),notes:qs('#orderNotes')?.value||''};ordersSaveDiagnostics.begin(draft);ordersPersistenceDiagnostics.begin(draft);try{const result=await v0200OrdersTraceSaveOrder(...args);ordersSaveDiagnostics.finish();return result;}catch(error){ordersSaveDiagnostics.record('save_handler_error',{error:String(error?.message||error)});ordersPersistenceDiagnostics.recordFailure('saveOrder wrapper',error);ordersSaveDiagnostics.finish();throw error;}};
 const v0190FinalOpenBatch=window.openBatchEditor;window.openBatchEditor=function(id=''){v0190FinalOpenBatch(id);const handoff=qs('#batchHandoffField');if(handoff)handoff.hidden=true;};
 Object.assign(window,{openOrderEditor:window.openOrderEditor,orderBatchChanged:window.orderBatchChanged,toggleOrderFulfillment:window.toggleOrderFulfillment,saveOrder:window.saveOrder,openBatchEditor:window.openBatchEditor});
