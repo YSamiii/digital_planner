@@ -19,6 +19,21 @@
   const formatForwardingStage=(stage,service)=>stageLabel(stage,service);
   const formatFulfillmentType=type=>fulfillmentLabels[type]||'其他';
   const formatRouteService=service=>serviceLabels[service]||'其他';
+  function stableOrderUsageTime(order){
+    const localDate=String(order?.orderDate||'').trim();
+    if(/^\d{4}-\d{2}-\d{2}$/.test(localDate)){const [year,month,day]=localDate.split('-').map(Number);return Date.UTC(year,month-1,day,12,0,0);}
+    for(const value of [order?.createdAt,order?.updatedAt]){const numeric=Number(value);if(Number.isFinite(numeric)&&numeric>0)return numeric;const parsed=Date.parse(String(value||''));if(Number.isFinite(parsed))return parsed;}
+    return 0;
+  }
+  function getSellerUsageStats(sellers,orders){
+    const stats=new Map((sellers||[]).filter(Boolean).map(seller=>[String(seller.id),{usageCount:0,lastUsedAt:0}]));
+    for(const order of orders||[]){const sellerId=String(order?.sellerId||'');if(!sellerId||order?.deleted===true||order?.tombstoned===true||!stats.has(sellerId))continue;const stat=stats.get(sellerId);stat.usageCount+=1;stat.lastUsedAt=Math.max(stat.lastUsedAt,stableOrderUsageTime(order));}
+    return stats;
+  }
+  function sortSellersByUsage(sellers,orders){
+    const stats=getSellerUsageStats(sellers,orders);
+    return (sellers||[]).slice().sort((left,right)=>{const a=stats.get(String(left?.id))||{usageCount:0,lastUsedAt:0},b=stats.get(String(right?.id))||{usageCount:0,lastUsedAt:0};return b.usageCount-a.usageCount||b.lastUsedAt-a.lastUsedAt||String(left?.name||'').localeCompare(String(right?.name||''),undefined,{sensitivity:'base'})||String(left?.id||'').localeCompare(String(right?.id||''));});
+  }
   function createOrdersModule(ctx){
     const {qs,esc,iso,getState,save,commitOrderInventoryCandidate,commitOrderCandidate,modal,media,inventory,recurrence,sellers,ordersSaveDiagnostics,ordersPersistenceDiagnostics}=ctx;
     let editId='',recurringId='',batchId='',importOrderId='',reversalOrderId='',deleteOrderId='',pendingImageFile=null,previewUrl='',filter='all',orderDraft=null,batchNavigation=null,batchEvents=[],orderSortInitialized=false;
@@ -35,7 +50,7 @@
     function normalizeBatch(b){b.serviceType=b.serviceType||b.primaryTransportMode||'sea';b.onwardTransport=b.onwardTransport||b.onwardTransportMode||'rail';b.primaryTransportMode=b.serviceType;b.onwardTransportMode=b.onwardTransport;const canonical=routeStages(b.serviceType,b.onwardTransport),legacy=Array.isArray(b.routeStages)?b.routeStages.filter(stage=>!canonical.includes(stage)):[];b.routeStages=[...canonical,...legacy];b.currentStage=b.currentStage||b.stage||b.routeStages[0];b.routeDates=b.routeDates||{departure:b.vesselDate||'',arrival:b.portArrivalDate||'',onward:b.railDate||'',local:b.localDeliveryDate||''};return b;}
     function setPreview(record){const img=qs('#orderImagePreview');if(!img)return;if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}if(record?.blob)previewUrl=URL.createObjectURL(record.blob);img.src=previewUrl||'';img.hidden=!previewUrl;const empty=qs('#orderImageEmpty');if(empty)empty.hidden=!!previewUrl;}
     async function showImage(id){if(!id){setPreview(null);return;}try{setPreview(await media.get(id));}catch(_){setPreview(null);}}
-    function sellerSelect(selected=''){const el=qs('#orderSeller');el.innerHTML='<option value="">选择卖家</option>'+data().sellers.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')+'<option value="__new__">＋ 新增卖家</option>';el.value=selected||'';}
+    function sellerSelect(selected=''){const el=qs('#orderSeller'),source=getState(),sellers=sortSellersByUsage(source.orders?.sellers||[],source.orders?.items||[]);el.innerHTML='<option value="">选择卖家</option>'+sellers.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')+'<option value="__new__">＋ 新增卖家</option>';el.value=selected||'';}
     function locationSelect(selected=''){const el=qs('#orderPickupLocation');if(!el)return;el.innerHTML='<option value="">使用卖家默认地址</option>'+data().pickupLocations.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')+'<option value="__new__">＋ 新增取货点</option>';el.value=selected||'';}
     function batchSelect(selected=''){const el=qs('#orderBatch');if(!el)return;el.innerHTML='<option value="">不关联批次</option>'+data().forwardingBatches.map(x=>`<option value="${esc(x.id)}">${esc(x.name)} · ${serviceLabels[x.serviceType]||'其他'}</option>`).join('')+'<option value="__new__">＋ 新建集运批次</option>';el.value=selected||'';}
     function statusSelect(type,value){const rows=type==='forwarding'?[]:(STANDARD[type]||STANDARD.direct);const el=qs('#orderStatus');el.innerHTML=(rows.length?rows:[['draft','待确认']]).map(([v,l])=>`<option value="${v}">${l}</option>`).join('');el.value=rows.some(x=>x[0]===value)?value:(rows[0]?.[0]||'draft');}
@@ -185,5 +200,5 @@
     setTimeout(layoutOrderHeader,0);
     return {render,setOrderSort,clearFilters,openOrderEditor,closeOrderEditor,saveOrder,addOrderItem,removeOrderItem,updateOrderTotal,toggleManualTotal,toggleFulfillment,toggleForwardOverride,orderSellerChanged,orderPickupLocationChanged,batchChanged,orderBatchChanged:batchChanged,orderImageChanged,setFilter,archiveOrder,deleteOrder,requestDeleteOrder,closeOrderDeleteOptions,deleteOrderOnly,reverseAndDeleteOrder,openOrderInventoryReversal,closeBatchEditor,saveBatch,refreshBatchRouteFields,openBatchManagement,closeBatchManagement,openBatchDetail,closeBatchDetail,openBatchFromOrder,openRelatedBatchOrder,editBatchFromDetail,relatedOrders,addManagedBatch,editManagedBatch,deleteManagedBatch,restoreForwardingBatch,addBatchTrackingEvent,updateBatchTrackingEvent,removeBatchTrackingEvent,openRecurringEditor,closeRecurringEditor,saveRecurring,previewRecurring,recurringSellerChanged,toggleRecurring,deleteRecurring,openOrderInventoryImport,closeOrderInventoryImport,importOrderToInventory,confirmRecurringOrder,getEffectiveOrderStatus,isOrderReadyForPickup,normalizeOrderStatus,normalizeOrderStatusFilter,getVisibleOrders,selectOrdersForView,getOrdersFilterState:()=>({chipFilter:filter,statusFilter:qs('#orderStatusFilter')?.value||'',search:qs('#orderSearch')?.value||'',sort:qs('#orderSort')?.value||''}),auditOrdersData,refreshOrdersDataAudit,exportOrdersDataAudit,copyTracking:()=>{},openTracking:()=>{},__inventoryTest:{activeImportEvents,importedQuantity,stageReversal},__forwardingTest:{routeStages,stageLabel,generatedTitle,formatRecurringItem,formatRecurrence,formatOrderStatus,formatForwardingStage,formatFulfillmentType,formatRouteService,serviceLabels,onwardLabels,workflowRank,getEffectiveOrderStatus,isOrderReadyForPickup,normalizeOrderStatus,normalizeOrderStatusFilter},__ordersViewTest:{normalizeOrderSort}};
   }
-  window.JournalModules=window.JournalModules||{};window.JournalModules.createOrdersModule=createOrdersModule;
+  window.JournalModules=window.JournalModules||{};window.JournalModules.createOrdersModule=createOrdersModule;window.JournalModules.sellerUsage={getSellerUsageStats,sortSellersByUsage,stableOrderUsageTime};
 })();

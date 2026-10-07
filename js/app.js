@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='v0.23.5-forwarding-fix-order-focus-grouping-production-candidate-20261007';
-document.documentElement.dataset.runtimeBuild='v0.23.5-forwarding-fix-order-focus-grouping-production-candidate-20261007';
+window.JOURNAL_BUILD='v0.23.6-seller-frequency-sorting-production-candidate-20261007';
+document.documentElement.dataset.runtimeBuild='v0.23.6-seller-frequency-sorting-production-candidate-20261007';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createLegacyJournalPayloadStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter, createLegacyJournalPayloadManager, analyzeLegacyJournalFootprint} = window.JournalModules || {};
 const KEY='journal-planner-v091';
-const APP_VERSION='0.23.5';
-const BUILD_LABEL='Forwarding Fix & Order Focus Grouping Production Candidate';
+const APP_VERSION='0.23.6';
+const BUILD_LABEL='Seller Frequency Sorting Production Candidate';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 const INVENTORY_SORT_MODES=['added','updated','created','az','za','quantityAsc','quantityDesc','expiry'];
@@ -1243,7 +1243,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0232canonicalslimmingqa1-20261005').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v=0236sellerfrequencysortingprod-20261007').catch(err=>console.warn('SW registration failed',err));
   });
 }
 
