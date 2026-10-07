@@ -57,59 +57,44 @@
     return aDate.localeCompare(bDate) || String(a?.id || '').localeCompare(String(b?.id || ''));
   }
 
-  function collectPickupOrdersForTodayFocus(state, options = {}) {
+  function groupOrderFocusItems(state, today, options = {}) {
     const effective = options.getEffectiveOrderStatus || ((order) => defaultEffectiveStatus(order, state));
     const sellers = state?.orders?.sellers || [];
     const sellerName = order => String(order?.sellerNameSnapshot || sellers.find(row => String(row?.id) === String(order?.sellerId))?.name || '').trim();
-    const orders = (state?.orders?.items || [])
-      .filter(isVisibleOrder)
-      .filter(order => {
-        const status = String(effective(order) || '').toLowerCase();
-        return PICKUP.has(status) && !COMPLETED.has(status);
-      })
-      .sort(pickupOrderSort);
-    const sellerNames = [];
-    for (const order of orders) {
-      const name = sellerName(order);
-      if (name && !sellerNames.includes(name)) sellerNames.push(name);
-    }
-    return { orders, orderIds: orders.map(order => String(order.id)), sellerNames };
-  }
-
-  function buildPickupFocusItem(state, options = {}) {
-    const pickup = collectPickupOrdersForTodayFocus(state, options);
-    if (!pickup.orders.length) return null;
-    return item({
-      module: 'orders',
-      sourceId: 'pickup-orders',
-      type: 'pickup_orders',
-      priority: 1,
-      titleKey: 'pickupOrders',
-      action: { type: 'open_pickup_orders', orderIds: pickup.orderIds },
-      meta: { pickupCount: pickup.orders.length, sellerNames: pickup.sellerNames, orderIds: pickup.orderIds }
-    });
-  }
-
-  function collectOrderFocusItems(state, today, options = {}) {
-    const effective = options.getEffectiveOrderStatus || ((order) => defaultEffectiveStatus(order, state));
-    const sellers = state.orders?.sellers || [];
-    const byOrder = new Map();
-    const pickup = buildPickupFocusItem(state, options);
-    const pickupOrderIds = new Set(pickup?.meta?.orderIds || []);
-    if (pickup) byOrder.set(pickup.id, pickup);
-    for (const order of state.orders?.items || []) {
-      if (!isVisibleOrder(order) || pickupOrderIds.has(String(order.id))) continue;
+    const groups = new Map([
+      ['pickup_orders', { type: 'pickup_orders', priority: 1, titleKey: 'pickupOrders', filter: 'ready_for_pickup', orders: [] }],
+      ['expected_today_orders', { type: 'expected_today_orders', priority: 2, titleKey: 'expectedToday', filter: 'expected_today', orders: [] }],
+      ['expected_soon_orders', { type: 'expected_soon_orders', priority: 3, titleKey: 'expectedSoon', filter: 'expected_soon', orders: [] }]
+    ]);
+    const individual = [];
+    for (const order of state?.orders?.items || []) {
+      if (!isVisibleOrder(order)) continue;
       const status = String(effective(order) || '').toLowerCase();
       if (COMPLETED.has(status)) continue;
-      const seller = order.sellerNameSnapshot || sellers.find(row => String(row?.id) === String(order.sellerId))?.name || '';
-      let next = null;
-      if (order.expectedDate && order.expectedDate < today) next = item({ module: 'orders', sourceId: order.id, type: 'overdue_order', priority: 1, date: order.expectedDate, titleKey: 'overdueOrder', subtitle: seller, action: { type: 'open_order', id: String(order.id) } });
-      else if (order.expectedDate === today) next = item({ module: 'orders', sourceId: order.id, type: 'expected_today', priority: 2, date: order.expectedDate, titleKey: 'expectedToday', subtitle: seller, action: { type: 'open_order', id: String(order.id) } });
-      else if (order.expectedDate > today && order.expectedDate <= addCalendarDays(today, 2)) next = item({ module: 'orders', sourceId: order.id, type: 'expected_soon', priority: 3, date: order.expectedDate, titleKey: 'expectedSoon', subtitle: seller, action: { type: 'open_order', id: String(order.id) } });
-      if (next) byOrder.set(String(order.id), next);
+      if (PICKUP.has(status)) { groups.get('pickup_orders').orders.push(order); continue; }
+      if (order.expectedDate && order.expectedDate < today) { individual.push(item({ module: 'orders', sourceId: order.id, type: 'overdue_order', priority: 1, date: order.expectedDate, titleKey: 'overdueOrder', subtitle: sellerName(order), action: { type: 'open_order', id: String(order.id) } })); continue; }
+      if (order.expectedDate === today) { groups.get('expected_today_orders').orders.push(order); continue; }
+      if (order.expectedDate > today && order.expectedDate <= addCalendarDays(today, 2)) groups.get('expected_soon_orders').orders.push(order);
     }
-    return [...byOrder.values()];
+    const grouped = [...groups.values()].flatMap(group => {
+      const orders = group.orders.sort(pickupOrderSort);
+      if (!orders.length) return [];
+      const sellerNames = [];
+      orders.forEach(order => { const name = sellerName(order); if (name && !sellerNames.includes(name)) sellerNames.push(name); });
+      return [item({ module: 'orders', sourceId: group.type, type: group.type, priority: group.priority, date: orders[0].expectedDate || '', titleKey: group.titleKey, action: { type: 'open_order_group', filter: group.filter, orderIds: orders.map(order => String(order.id)) }, meta: { orderCount: orders.length, sellerNames, orderIds: orders.map(order => String(order.id)), semanticType: group.type } })];
+    });
+    return [...individual, ...grouped];
   }
+
+  function collectPickupOrdersForTodayFocus(state, options = {}) {
+    const rows = groupOrderFocusItems(state, '', options).find(row => row.type === 'pickup_orders');
+    const orders = (state?.orders?.items || []).filter(order => rows?.meta?.orderIds?.includes(String(order.id))).sort(pickupOrderSort);
+    return { orders, orderIds: rows?.meta?.orderIds || [], sellerNames: rows?.meta?.sellerNames || [] };
+  }
+
+  function buildPickupFocusItem(state, options = {}) { return groupOrderFocusItems(state, '', options).find(row => row.type === 'pickup_orders') || null; }
+
+  function collectOrderFocusItems(state, today, options = {}) { return groupOrderFocusItems(state, today, options); }
 
   function collectSubscriptionFocusItems(state, today) {
     const dueSoon = addCalendarDays(today, 3);
@@ -175,11 +160,11 @@
   function subtitleText(row) {
     const i18n = window.TodayFocusI18n;
     const progress = row.meta?.progress;
-    if (row.type === 'pickup_orders') {
-      const count = Math.max(0, Number(row.meta?.pickupCount) || 0);
+    if (row.type === 'pickup_orders' || row.type === 'expected_today_orders' || row.type === 'expected_soon_orders') {
+      const count = Math.max(0, Number(row.meta?.orderCount) || 0);
       const names = Array.isArray(row.meta?.sellerNames) ? row.meta.sellerNames.slice(0, 2) : [];
       if (count === 1 && names.length) return names[0];
-      const pieces = [i18n.t('pickupReadyCount', { count })];
+      const pieces = [row.type === 'pickup_orders' ? i18n.t('pickupReadyCount', { count }) : i18n.t('orderCount', { count })];
       if (names.length) pieces.push(...names);
       const remaining = Math.max(0, count - names.length);
       if (remaining) pieces.push(i18n.t('pickupMore', { count: remaining }));

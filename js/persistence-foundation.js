@@ -54,36 +54,35 @@
     const candidate=String(payload??'');
     const info={key:String(key),candidateBytes:byteLength(candidate),stagingBytes:0,shadowBytes:0,temporaryBytes:0,retryCount:0,compact:null};
     let previousRaw;
-    try{previousRaw=storage.getItem(key);}catch(error){const failure={ok:false,stage:'localStorage.getItem',errorName:error?.name||'Error',message:error?.message||String(error||'读取保存前内容失败'),persisted:false,retryCount:0,commitFootprint:{candidateBytes:info.candidateBytes,stagingBytes:0,shadowBytes:0,temporaryBytes:0}};onFailure?.(failure);return failure;}
+    try{previousRaw=storage.getItem(key);}catch(error){const failure={ok:false,stage:'read_previous',errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false,retryCount:0,commitFootprint:{candidateBytes:info.candidateBytes,stagingBytes:0,shadowBytes:0,temporaryBytes:0}};onFailure?.(failure);return failure;}
     const restorePrevious=()=>{
-      try{if(previousRaw===null)storage.removeItem(key);else storage.setItem(key,previousRaw);return {restored:true};}
-      catch(error){return {restored:false,error};}
+      try{
+        if(previousRaw===null)storage.removeItem(key);else storage.setItem(key,previousRaw);
+        return {attempted:true,ok:storage.getItem(key)===previousRaw};
+      }catch(error){return {attempted:true,ok:false,errorName:error?.name||'Error',message:error?.message||String(error||'rollback failed')};}
     };
     const attempt=phase=>{
-      let wroteCandidate=false;
+      let writeCompleted=false;
       try{
         onAttempt?.({phase,payload:candidate,...info});
         storage.setItem(key,candidate);
-        wroteCandidate=true;
+        writeCompleted=true;
         const readBack=storage.getItem(key);
         if(readBack!==candidate)throw new Error('持久化 read-back 校验失败');
         const verified=typeof verifyReadBack==='function'?verifyReadBack(readBack):null;
         const result={ok:true,stage:'read-back',persisted:true,payloadBytes:info.candidateBytes,retryCount:info.retryCount,verified,commitFootprint:{candidateBytes:info.candidateBytes,stagingBytes:0,shadowBytes:0,temporaryBytes:0}};
         onSuccess?.({phase,payload:candidate,...result});
         return result;
-      }catch(error){
-        const rollback=wroteCandidate?restorePrevious():null;
-        return {ok:false,error,rollback,stage:phase==='initial'?'localStorage.setItem':'compact-retry'};
-      }
+      }catch(error){return {ok:false,error,stage:phase==='initial'?'localStorage.setItem':'compact-retry',rollback:writeCompleted?restorePrevious():{attempted:false,ok:true}};}
     };
     let result=attempt('initial');
     if(result.ok)return result;
-    if(!quotaError(result.error)||compactRetry===false){const failure={ok:false,stage:result.stage,errorName:result.error?.name||'Error',message:result.error?.message||String(result.error||'保存失败'),persisted:false,retryCount:0,commitFootprint:{candidateBytes:info.candidateBytes,stagingBytes:0,shadowBytes:0,temporaryBytes:0}};onFailure?.(failure);return failure;}
+    if(!quotaError(result.error)||compactRetry===false){const failure={ok:false,stage:result.stage,errorName:result.error?.name||'Error',message:result.error?.message||String(result.error||'保存失败'),persisted:false,retryCount:0,rollback:result.rollback,commitFootprint:{candidateBytes:info.candidateBytes,stagingBytes:0,shadowBytes:0,temporaryBytes:0}};onFailure?.(failure);return failure;}
     info.retryCount=1;info.compact=runCompactRetry({storage,key,payload:candidate,candidateBytes:info.candidateBytes});
     info.temporaryBytes=0;
     result=attempt('compact_retry');
     if(result.ok)return result;
-    const failure={ok:false,stage:'compact-retry',errorName:result.error?.name||'Error',message:result.error?.message||String(result.error||'保存失败'),persisted:false,retryCount:1,compact:info.compact,commitFootprint:{candidateBytes:info.candidateBytes,stagingBytes:0,shadowBytes:0,temporaryBytes:0}};onFailure?.(failure);return failure;
+    const failure={ok:false,stage:'compact-retry',errorName:result.error?.name||'Error',message:result.error?.message||String(result.error||'保存失败'),persisted:false,retryCount:1,rollback:result.rollback,compact:info.compact,commitFootprint:{candidateBytes:info.candidateBytes,stagingBytes:0,shadowBytes:0,temporaryBytes:0}};onFailure?.(failure);return failure;
   }
   function fallbackState(defaultState,hydrateState){
     try{return hydrate(defaultState(),hydrateState);}catch(_){return defaultState();}
