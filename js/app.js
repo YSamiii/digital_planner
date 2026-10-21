@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='v0.23.7-auto-order-lifecycle-fix-production-candidate-20261021';
-document.documentElement.dataset.runtimeBuild='v0.23.7-auto-order-lifecycle-fix-production-candidate-20261021';
+window.JOURNAL_BUILD='v0.23.7-auto-order-lifecycle-fix-production-qa2-candidate-20261021';
+document.documentElement.dataset.runtimeBuild='v0.23.7-auto-order-lifecycle-fix-production-qa2-candidate-20261021';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createLegacyJournalPayloadStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter, createLegacyJournalPayloadManager, analyzeLegacyJournalFootprint} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.23.7';
-const BUILD_LABEL='Auto Order Lifecycle Fix Production Candidate';
+const BUILD_LABEL='Auto Order Lifecycle Fix Production QA2 Candidate';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 const INVENTORY_SORT_MODES=['added','updated','created','az','za','quantityAsc','quantityDesc','expiry'];
@@ -601,6 +601,27 @@ function commitOrderCandidate(candidate,{orderId,expectedForwarding,expectedOrde
   if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
   state=hydrateAppState(commitCandidate);lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;return result;
 }
+function commitRecurringLifecycleCandidate(candidate,{recurringId,expectedLastOrderDate='',expectedNextOrderDate='',expectedGeneratedOrder=null,expectedAdvancedOrders=[]}={}){
+  const fail=(stage,error)=>{const result={ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false};window.lastPersistenceResult=result;window.__canonicalSaveFailurePending=result;return result;};
+  if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取。为保护现有记录，App 已暂停保存。'));
+  if(Number(candidate?.schemaVersion)!==12)return fail('candidate_validation',new Error('自动订购恢复候选数据版本无效。'));
+  let payload='';try{payload=JSON.stringify(candidate);}catch(error){return fail('JSON.stringify',error);}
+  const commit=window.PersistenceFoundation?.commitCanonical;if(typeof commit!=='function')return fail('quota_safe_commit_unavailable',new Error('统一安全保存路径不可用'));
+  const result=commit({storage:localStorage,key:KEY,payload,verifyReadBack:raw=>{
+    const persisted=JSON.parse(raw);
+    if(!persisted||typeof persisted!=='object'||Array.isArray(persisted))throw new Error('canonical read-back root 无效');
+    if(Number(persisted.schemaVersion)!==12)throw new Error('canonical read-back schemaVersion 无效');
+    const plan=(persisted.orders?.recurring||[]).find(row=>String(row?.id||'')===String(recurringId||''));
+    if(!plan)throw new Error('canonical read-back recurring plan 缺失');
+    if(String(plan.lastOrderDate||'')!==String(expectedLastOrderDate||''))throw new Error('canonical read-back recurring lastOrderDate 不匹配');
+    if(String(plan.nextOrderDate||'')!==String(expectedNextOrderDate||''))throw new Error('canonical read-back recurring nextOrderDate 不匹配');
+    if(expectedGeneratedOrder){const order=(persisted.orders?.items||[]).find(row=>String(row?.id||'')===String(expectedGeneratedOrder.id||''));if(!order)throw new Error('canonical read-back generated draft 缺失');for(const [field,value] of Object.entries(expectedGeneratedOrder)){if(field==='items')continue;if(String(order[field]??'')!==String(value??''))throw new Error(`canonical read-back generated draft ${field} 不匹配`);}if(expectedGeneratedOrder.items&&JSON.stringify(order.items||[])!==JSON.stringify(expectedGeneratedOrder.items))throw new Error('canonical read-back generated draft items 不匹配');if(order.status!=='draft'||order.orderType!=='recurring-generated')throw new Error('canonical read-back generated order 不是自动订购 draft');}
+    for(const expected of expectedAdvancedOrders||[]){const order=(persisted.orders?.items||[]).find(row=>String(row?.id||'')===String(expected?.id||''));if(!order)throw new Error('canonical read-back legacy recurring order 缺失');if(String(order.recurringCycleAdvancedAt??'')!==String(expected.recurringCycleAdvancedAt??''))throw new Error('canonical read-back recurringCycleAdvancedAt 不匹配');}
+    return {schemaVersion:12,recurringId:String(recurringId),generatedOrderId:expectedGeneratedOrder?String(expectedGeneratedOrder.id):null,advancedOrderCount:(expectedAdvancedOrders||[]).length};
+  }});
+  if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'自动订购恢复保存失败'});
+  state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;return result;
+}
 function commitNoSpendCandidate(candidate,{challengeId,date,expectedStatus}={}){
   const fail=(stage,error)=>({ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false});
   if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取。为保护现有记录，App 已暂停保存。'));
@@ -1026,7 +1047,7 @@ const diagnosticStorageKeys=new Set([
 window.PersistenceFoundation?.registerQuotaSafeCleanup?.(()=>{
   return {safe:true,removeKeys:[...diagnosticStorageKeys]};
 },{safeKey:key=>diagnosticStorageKeys.has(String(key))});
-const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,commitTwelveWeekCandidate,commitOrderInventoryCandidate,commitOrderCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
+const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,commitTwelveWeekCandidate,commitOrderInventoryCandidate,commitOrderCandidate,commitRecurringLifecycleCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
 const productivityModule=createProductivityModule(moduleCtx);
 const noSpendModule=createNoSpendModule({...moduleCtx,commitNoSpendCandidate});
 const collectionsModule=createCollectionsModule(moduleCtx);
@@ -1255,7 +1276,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0237autoorderlifecycleprod-20261021').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v=0237autoorderlifecycleprodqa2-20261021').catch(err=>console.warn('SW registration failed',err));
   });
 }
 
