@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='v0.23.6-seller-frequency-sorting-production-candidate-20261007';
-document.documentElement.dataset.runtimeBuild='v0.23.6-seller-frequency-sorting-production-candidate-20261007';
+window.JOURNAL_BUILD='v0.23.7-auto-order-lifecycle-fix-production-candidate-20261021';
+document.documentElement.dataset.runtimeBuild='v0.23.7-auto-order-lifecycle-fix-production-candidate-20261021';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createLegacyJournalPayloadStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter, createLegacyJournalPayloadManager, analyzeLegacyJournalFootprint} = window.JournalModules || {};
 const KEY='journal-planner-v091';
-const APP_VERSION='0.23.6';
-const BUILD_LABEL='Seller Frequency Sorting Production Candidate';
+const APP_VERSION='0.23.7';
+const BUILD_LABEL='Auto Order Lifecycle Fix Production Candidate';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 const INVENTORY_SORT_MODES=['added','updated','created','az','za','quantityAsc','quantityDesc','expiry'];
@@ -574,20 +574,32 @@ function commitOrderInventoryCandidate(candidate,{orderId,expectedInventoryIds=[
   if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
   state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.lastPersistenceResult=result;return result;
 }
-function commitOrderCandidate(candidate,{orderId,expectedForwarding}={}){
+function commitOrderCandidate(candidate,{orderId,expectedForwarding,expectedOrder,expectedRecurring}={}){
   const fail=(stage,error)=>({ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false});
   if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取。为保护现有记录，App 已暂停保存。'));
-  let payload='';try{payload=JSON.stringify(candidate);}catch(error){return fail('JSON.stringify',error);}
+  let commitCandidate=candidate,commitExpectedOrder=expectedOrder||{},commitExpectedRecurring=expectedRecurring||null;
+  const previousOrder=(state.orders?.items||[]).find(item=>String(item?.id)===String(orderId)),candidateOrder=(candidate.orders?.items||[]).find(item=>String(item?.id)===String(orderId));
+  if(previousOrder?.status==='draft'&&candidateOrder?.status==='ordered'&&(candidateOrder.orderType==='recurring-generated'||candidateOrder.sourceRecurringId)&&!candidateOrder.recurringCycleAdvancedAt){
+    const lifecycle=window.JournalModules?.autoOrderLifecycle,recurrence=window.JournalModules?.createRecurrenceHelper?.();
+    const transition=lifecycle?.applyGeneratedOrderSaveTransition?.(candidate,'draft',orderId,{todayDate:iso(new Date()),nextDate:recurrence?.nextDate,confirmedAt:Date.now()});
+    if(!transition?.ok)return fail(transition?.stage||'recurring_transition',new Error('自动订购周期无法安全推进。'));
+    commitCandidate=transition.candidate;const transitionedOrder=(commitCandidate.orders?.items||[]).find(item=>String(item?.id)===String(orderId));
+    commitExpectedOrder={...commitExpectedOrder,status:'ordered',sourceRecurringId:transitionedOrder?.sourceRecurringId||'',dueDate:transitionedOrder?.dueDate||'',...(transitionedOrder?.recurringCycleAdvancedAt?{recurringCycleAdvancedAt:transitionedOrder.recurringCycleAdvancedAt}:{})};
+    if(transition.advanced)commitExpectedRecurring={id:transition.recurring.id,lastOrderDate:transition.recurring.lastOrderDate,nextOrderDate:transition.recurring.nextOrderDate,recurringCycleAdvancedAt:transitionedOrder.recurringCycleAdvancedAt};
+  }
+  let payload='';try{payload=JSON.stringify(commitCandidate);}catch(error){return fail('JSON.stringify',error);}
   const commit=window.PersistenceFoundation?.commitCanonical;if(typeof commit!=='function')return fail('quota_safe_commit_unavailable',new Error('统一安全保存路径不可用'));
   const result=commit({storage:localStorage,key:KEY,payload,verifyReadBack:raw=>{
     const persisted=JSON.parse(raw),order=(persisted.orders?.items||[]).find(item=>String(item?.id)===String(orderId));
     if(Number(persisted?.schemaVersion)!==12)throw new Error('canonical read-back schemaVersion 无效');
     if(!order)throw new Error('canonical read-back order 缺失');
+    for(const [field,value] of Object.entries(commitExpectedOrder)){if(String(order[field]??'')!==String(value??''))throw new Error(`canonical read-back order ${field} 不匹配`);}
     if(expectedForwarding){const f=order.forwarding||{};if(String(f.batchId||'')!==String(expectedForwarding.batchId||''))throw new Error('canonical read-back forwarding batch 不匹配');if(String(f.independentStatus||'')!==String(expectedForwarding.independentStatus||''))throw new Error('canonical read-back forwarding independentStatus 不匹配');}
-    return {schemaVersion:12,orderId:String(orderId)};
+    if(commitExpectedRecurring){const recurring=(persisted.orders?.recurring||[]).find(plan=>String(plan?.id)===String(commitExpectedRecurring.id));if(!recurring)throw new Error('canonical read-back recurring plan 缺失');for(const field of ['lastOrderDate','nextOrderDate'])if(String(recurring[field]??'')!==String(commitExpectedRecurring[field]??''))throw new Error(`canonical read-back recurring ${field} 不匹配`);if(commitExpectedRecurring.recurringCycleAdvancedAt&&String(order.recurringCycleAdvancedAt??'')!==String(commitExpectedRecurring.recurringCycleAdvancedAt))throw new Error('canonical read-back recurring confirmation marker 不匹配');}
+    return {schemaVersion:12,orderId:String(orderId),recurringId:commitExpectedRecurring?String(commitExpectedRecurring.id):null};
   }});
   if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
-  state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;return result;
+  state=hydrateAppState(commitCandidate);lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;return result;
 }
 function commitNoSpendCandidate(candidate,{challengeId,date,expectedStatus}={}){
   const fail=(stage,error)=>({ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false});
@@ -1243,7 +1255,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0236sellerfrequencysortingprod-20261007').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v=0237autoorderlifecycleprod-20261021').catch(err=>console.warn('SW registration failed',err));
   });
 }
 
@@ -1267,7 +1279,7 @@ Object.assign(window,{renderGrowthJournal,allGrowthRecords,openGrowthMilestone,s
 setTimeout(()=>{const page=qs('#growthJournal'),top=page?.querySelector('.top');if(top&&!top.querySelector('[data-growth-export]')){const button=document.createElement('button');button.type='button';button.className='ghost';button.dataset.growthExport='true';button.textContent='导出';button.onclick=openGrowthExport;top.append(button);}},0);
 function ensureForwardingPreShipmentUI(value='not_received_warehouse'){const inherited=qs('#orderForwardInherited');if(!inherited||qs('#orderPreShipmentStage'))return;const field=document.createElement('div');field.className='form-field';field.id='orderPreShipmentField';field.innerHTML='<label>仓库处理状态</label><select id="orderPreShipmentStage"><option value="not_received_warehouse">未入库</option><option value="received_warehouse">已入库</option><option value="waiting_pack">待打包</option><option value="waiting_payment">待支付</option><option value="waiting_dispatch">待发货</option></select><p class="small">订单在批次接管运输前，保留各自的仓库处理状态。</p>';inherited.after(field);qs('#orderPreShipmentStage').value=value;qs('#orderPreShipmentStage').onchange=()=>{const stage=qs('#orderPreShipmentStage').value,transport=qs('#orderForwardStage'),labels={not_received_warehouse:'未入库',received_warehouse:'已入库',waiting_pack:'待打包',waiting_payment:'待支付',waiting_dispatch:'待发货'};if(transport&&!transport.querySelector(`option[value="${stage}"]`))transport.insertAdjacentHTML('afterbegin',`<option value="${stage}">${labels[stage]}</option>`);if(transport)transport.value=stage;};}
 const v0190OpenOrderEditor=window.openOrderEditor;window.openOrderEditor=function(id=''){v0190OpenOrderEditor(id);const order=state.orders?.items?.find(item=>item.id===id),stage=order?.forwarding?.preForwardingStage||order?.forwarding?.currentStage||'not_received_warehouse';qs('#orderModal').dataset.v0190OrderId=id||'';ensureForwardingPreShipmentUI(stage);qs('#orderPreShipmentStage').value=['not_received_warehouse','received_warehouse','waiting_pack','waiting_payment','waiting_dispatch'].includes(stage)?stage:'not_received_warehouse';};
-const v0190SaveOrder=window.saveOrder;window.saveOrder=async function(){const pre=qs('#orderPreShipmentStage')?.value||'',id=qs('#orderModal').dataset.v0190OrderId||'',before=new Set((state.orders?.items||[]).map(item=>item.id));await v0190SaveOrder();if(!pre)return;const order=id?(state.orders?.items||[]).find(item=>item.id===id):(state.orders?.items||[]).find(item=>!before.has(item.id));if(order?.fulfillmentType==='forwarding'){order.forwarding=order.forwarding||{};order.forwarding.preForwardingStage=pre;save();window.renderOrders?.();}};
+const v0190SaveOrder=window.saveOrder;window.saveOrder=async function(...args){return await v0190SaveOrder(...args);};
 function ensureBatchHandoffUI(value=true){const stage=qs('#batchStage');if(!stage||qs('#batchHandoffActive'))return;const field=document.createElement('label');field.id='batchHandoffField';field.innerHTML='<input id="batchHandoffActive" type="checkbox" style="width:auto"> 此批次已接管运输状态';stage.closest('.modal-body').insertBefore(field,stage.closest('label'));qs('#batchHandoffActive').checked=value!==false;}
 const v0190OpenBatchEditor=window.openBatchEditor;window.openBatchEditor=function(id=''){v0190OpenBatchEditor(id);const batch=state.orders?.forwardingBatches?.find(item=>item.id===id);qs('#batchModal').dataset.v0190BatchId=id||'';ensureBatchHandoffUI(batch?.handoffActive!==false);qs('#batchHandoffActive').checked=batch?.handoffActive!==false;};
 const v0190SaveBatch=window.saveBatch;window.saveBatch=function(){const handoff=!!qs('#batchHandoffActive')?.checked,id=qs('#batchModal').dataset.v0190BatchId||'',before=new Set((state.orders?.forwardingBatches||[]).map(item=>item.id));v0190SaveBatch();const batch=id?(state.orders?.forwardingBatches||[]).find(item=>item.id===id):(state.orders?.forwardingBatches||[]).find(item=>!before.has(item.id));if(batch){batch.handoffActive=handoff;save();window.renderOrders?.();}};
