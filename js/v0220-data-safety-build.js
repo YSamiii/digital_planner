@@ -1,7 +1,7 @@
 (function(){
   'use strict';
-  const build='v0.23.7-auto-order-lifecycle-fix-production-qa2-candidate-20261021';
+  const build='v0.23.8-forwarding-status-persistence-production-20261028';
   window.JOURNAL_BUILD=build;
   document.documentElement.dataset.runtimeBuild=build;
-  window.dispatchEvent(new CustomEvent('journalBuildReady',{detail:{build,label:'Auto Order Lifecycle Fix Production QA2 Candidate'}}));
+  window.dispatchEvent(new CustomEvent('journalBuildReady',{detail:{build,label:'Forwarding Status Persistence Production'}}));
 })();

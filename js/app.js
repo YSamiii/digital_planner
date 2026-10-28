@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='v0.23.7-auto-order-lifecycle-fix-production-qa2-candidate-20261021';
-document.documentElement.dataset.runtimeBuild='v0.23.7-auto-order-lifecycle-fix-production-qa2-candidate-20261021';
+window.JOURNAL_BUILD='v0.23.8-forwarding-status-persistence-production-20261028';
+document.documentElement.dataset.runtimeBuild='v0.23.8-forwarding-status-persistence-production-20261028';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createLegacyJournalPayloadStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter, createLegacyJournalPayloadManager, analyzeLegacyJournalFootprint} = window.JournalModules || {};
 const KEY='journal-planner-v091';
-const APP_VERSION='0.23.7';
-const BUILD_LABEL='Auto Order Lifecycle Fix Production QA2 Candidate';
+const APP_VERSION='0.23.8';
+const BUILD_LABEL='Forwarding Status Persistence Production';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 const INVENTORY_SORT_MODES=['added','updated','created','az','za','quantityAsc','quantityDesc','expiry'];
@@ -1276,7 +1276,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0237autoorderlifecycleprodqa2-20261021').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v=0238forwardingstatusprod-20261028').catch(err=>console.warn('SW registration failed',err));
   });
 }
 
@@ -1367,24 +1367,43 @@ function growthCanonicalTrace(date,blockId){const row=resolveGrowthRecord({kind:
 Object.assign(window,{resolveGrowthRecord,linkedGrowthProjection,allGrowthRecords,growthCardOpen,openGrowthMilestone,saveGrowthMilestone,toggleGrowthMilestone,cancelGrowthMilestone,renderTodayBlocks,renderGrowthJournal,growthCanonicalTrace});
 
 /* v0.20.0 Final iPhone QA: simple forwarding ownership boundary. */
-function v0190FinalForwardingUI(){
-  const type=qs('#orderFulfillment')?.value;if(type!=='forwarding')return;
-  const batch=qs('#orderBatch')?.value||'';const oldOverride=qs('#orderForwardOverride');if(oldOverride)oldOverride.closest('label').hidden=true;
+// Keep batch inheritance and order-level overrides in a single editor resolver.
+// preserveSelection is used on batch/fulfillment changes and draft restoration, never on initial open.
+function v0190FinalForwardingUI(preserveSelection=false,restoredSelection){
+  if(qs('#orderFulfillment')?.value!=='forwarding')return;
+  const batchId=qs('#orderBatch')?.value||'',oldOverride=qs('#orderForwardOverride');
+  if(oldOverride)oldOverride.closest('label').hidden=true;
   const oldFields=qs('#orderForwardOverrideFields');if(oldFields)oldFields.hidden=true;
   let pre=qs('#orderPreShipmentField'),independent=qs('#orderIndependentStatusField');
-  if(!pre){pre=document.createElement('div');pre.className='form-field';pre.id='orderPreShipmentField';pre.innerHTML='<label>仓库状态</label><select id="orderPreShipmentStage"><option value="ordered">已下单</option><option value="not_received_warehouse">未入库</option><option value="received_warehouse">已入库</option></select>';qs('#orderForwardInherited')?.after(pre);}
-  if(!independent){independent=document.createElement('div');independent.className='form-field';independent.id='orderIndependentStatusField';independent.innerHTML='<label>订单独立状态</label><select id="orderIndependentStatus"></select><p class="small">仅在此订单实际进度与批次不一致时使用。</p>';qs('#orderForwardInherited')?.after(independent);}
+  if(!pre){pre=document.createElement('div');pre.className='form-field';pre.id='orderPreShipmentField';pre.innerHTML='<label>仓库状态</label><select id="orderPreShipmentStage"><option value="ordered">已下单</option><option value="not_received_warehouse">未入库</option><option value="received_warehouse">已入库</option><option value="waiting_pack">待打包</option><option value="waiting_payment">待支付</option><option value="waiting_dispatch">待发货</option></select>';qs('#orderForwardInherited')?.after(pre);}
+  if(!independent){independent=document.createElement('div');independent.className='form-field';independent.id='orderIndependentStatusField';independent.innerHTML='<label>订单独立状态</label><select id="orderIndependentStatus"></select><p class="small"></p>';qs('#orderForwardInherited')?.after(independent);}
   const orderId=qs('#orderModal')?.dataset.v0190FinalOrderId||'',order=state.orders?.items?.find(item=>item.id===orderId),f=order?.forwarding||{};
-  qs('#orderPreShipmentStage').value=['ordered','not_received_warehouse','received_warehouse'].includes(f.preForwardingStage)?f.preForwardingStage:'ordered';
-  const batchModel=state.orders?.forwardingBatches?.find(item=>item.id===batch),stages=batchModel?.routeStages||[...qs('#orderForwardStage')?.options||[]].map(option=>option.value),primary=batchModel?.serviceType||'sea';
-  qs('#orderIndependentStatus').innerHTML='<option value="">无</option>'+stages.map(stage=>`<option value="${esc(stage)}">${esc(window.JournalModules?stage:(stage))}</option>`).join('');
-  [...qs('#orderIndependentStatus').options].forEach(option=>{const names={received_warehouse:'已入库',waiting_pack:'待打包',waiting_payment:'待支付',waiting_dispatch:'待发货',waiting_departure:primary==='air'?'待起飞':'待开船',departed:primary==='air'?'已起飞':'已开船',arrived_airport:'已到机场',arrived_port:'已到港',rail_transit:'铁路运输中',truck_transit:'卡车运输中',local_transit:'本地运输中',arrived_destination_hub:'到达总仓',destination_hub_processing:'总仓处理中',waiting_pickup_point:'等待送往取货点',at_pickup_point:'已到取货点',picked_up:'已取'};if(option.value)option.textContent=names[option.value]||option.value;});
-  qs('#orderIndependentStatus').value=f.independentStatus||'';pre.hidden=!!batch;independent.hidden=!batch;
-  const inherited=qs('#orderForwardInherited');if(inherited)inherited.textContent=batch?(batchModel?`${batchModel.name} · 当前批次状态：${qs('#orderIndependentStatus option:checked')?.textContent==='无'?(batchModel.currentStage||'已入库'):'已使用订单独立状态'}`:'已关联批次'):'未关联批次：请选择订单当前仓库状态。';
+  const stageInput=qs('#orderPreShipmentStage');
+  if(!preserveSelection){
+    const stage=f.preForwardingStage||'ordered';
+    if(stage&&![...stageInput.options].some(option=>option.value===stage))stageInput.add(new Option(stage,stage));
+    stageInput.value=stage;
+  }
+  const batch=state.orders?.forwardingBatches?.find(item=>item.id===batchId),primary=batch?.serviceType||'sea';
+  const stages=[...new Set(['ordered','not_received_warehouse','received_warehouse','waiting_pack','waiting_payment','waiting_dispatch',...(batch?.routeStages||[]),...[...qs('#orderForwardStage')?.options||[]].map(option=>option.value)])];
+  // Preserve the current draft through route changes, including a legacy status not in the new route.
+  const statusInput=qs('#orderIndependentStatus');
+  const selected=preserveSelection?(restoredSelection!==undefined?restoredSelection:statusInput.value):(f.independentStatus||'');
+  if(selected&&!stages.includes(selected))stages.push(selected);
+  const labels={ordered:'已下单',not_received_warehouse:'未入库',received_warehouse:'已入库',waiting_pack:'待打包',waiting_payment:'待支付',waiting_dispatch:'待发货',waiting_departure:primary==='air'?'待起飞':primary==='land'?'待发车':'待开船',departed:primary==='air'?'已起飞':primary==='land'?'已发车':'已开船',arrived_airport:'已到机场',arrived_port:'已到港',rail_transit:'铁路运输中',truck_transit:'卡车运输中',local_transit:'本地运输中',arrived_destination_hub:'到达总仓',destination_hub_processing:'总仓处理中',waiting_pickup_point:'等待送往取货点',at_pickup_point:'已到取货点',picked_up:'已取'};
+  statusInput.innerHTML='<option value="">'+(batchId?'继承批次状态':'使用上方仓库状态')+'</option>'+stages.map(stage=>`<option value="${esc(stage)}">${esc(labels[stage]||stage)}</option>`).join('');
+  statusInput.value=selected||'';
+  pre.hidden=!!batchId;independent.hidden=false;
+  independent.querySelector('p').textContent=batchId?'选择独立进度可覆盖批次；清空则继承批次状态。':'可记录本订单的独立物流进度；不选择则使用上方仓库状态。';
+  const inherited=qs('#orderForwardInherited');
+  function updateSummary(){if(!inherited)return;inherited.textContent=batchId?(batch?`${batch.name} · ${statusInput.value?'当前显示订单独立状态':'当前继承批次状态'}`:'关联的批次不存在；保留订单独立进度'):(statusInput.value?'未关联批次：使用订单独立物流状态':'未关联批次：使用上方仓库状态');}
+  statusInput.onchange=updateSummary;
+  updateSummary();
 }
+window.refreshOrderForwardingStatusUI=v0190FinalForwardingUI;
 const v0190FinalOpenOrder=window.openOrderEditor;window.openOrderEditor=function(id=''){v0190FinalOpenOrder(id);qs('#orderModal').dataset.v0190FinalOrderId=id||'';v0190FinalForwardingUI();};
-const v0190FinalBatchChanged=window.orderBatchChanged;window.orderBatchChanged=function(){v0190FinalBatchChanged();setTimeout(v0190FinalForwardingUI,0);};
-const v0190FinalToggleFulfillment=window.toggleOrderFulfillment;window.toggleOrderFulfillment=function(){v0190FinalToggleFulfillment();setTimeout(v0190FinalForwardingUI,0);};
+const v0190FinalBatchChanged=window.orderBatchChanged;window.orderBatchChanged=function(){v0190FinalBatchChanged();setTimeout(()=>v0190FinalForwardingUI(true),0);};
+const v0190FinalToggleFulfillment=window.toggleOrderFulfillment;window.toggleOrderFulfillment=function(){v0190FinalToggleFulfillment();setTimeout(()=>v0190FinalForwardingUI(true),0);};
 const v0200OrdersTraceSaveOrder=window.saveOrder;window.saveOrder=async function(...args){const draft={source:'global saveOrder',editorOrderId:qs('#orderModal')?.dataset.v0190FinalOrderId||'',seller:qs('#orderSeller')?.value||'',fulfillmentType:qs('#orderFulfillment')?.value||'',status:qs('#orderStatus')?.value||'',items:[...document.querySelectorAll('#orderItems [data-order-item]')].map(row=>({id:row.dataset.itemId||'',name:row.querySelector('.oi-name')?.value||'',quantity:row.querySelector('.oi-qty')?.value||''})),notes:qs('#orderNotes')?.value||''};ordersSaveDiagnostics.begin(draft);ordersPersistenceDiagnostics.begin(draft);try{const result=await v0200OrdersTraceSaveOrder(...args);ordersSaveDiagnostics.finish();return result;}catch(error){ordersSaveDiagnostics.record('save_handler_error',{error:String(error?.message||error)});ordersPersistenceDiagnostics.recordFailure('saveOrder wrapper',error);ordersSaveDiagnostics.finish();throw error;}};
 const v0190FinalOpenBatch=window.openBatchEditor;window.openBatchEditor=function(id=''){v0190FinalOpenBatch(id);const handoff=qs('#batchHandoffField');if(handoff)handoff.hidden=true;};
 Object.assign(window,{openOrderEditor:window.openOrderEditor,orderBatchChanged:window.orderBatchChanged,toggleOrderFulfillment:window.toggleOrderFulfillment,saveOrder:window.saveOrder,openBatchEditor:window.openBatchEditor});
