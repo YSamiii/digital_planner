@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='v0.23.9-order-bulk-edit-production-20261030';
-document.documentElement.dataset.runtimeBuild='v0.23.9-order-bulk-edit-production-20261030';
+window.JOURNAL_BUILD='v0.24.0-app-wide-bulk-production-20261030';
+document.documentElement.dataset.runtimeBuild='v0.24.0-app-wide-bulk-production-20261030';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createLegacyJournalPayloadStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter, createLegacyJournalPayloadManager, analyzeLegacyJournalFootprint} = window.JournalModules || {};
 const KEY='journal-planner-v091';
-const APP_VERSION='0.23.8';
-const BUILD_LABEL='Forwarding Status Persistence Production';
+const APP_VERSION='0.24.0';
+const BUILD_LABEL='App-Wide Bulk Edit Production';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 const INVENTORY_SORT_MODES=['added','updated','created','az','za','quantityAsc','quantityDesc','expiry'];
@@ -574,6 +574,38 @@ function commitOrderInventoryCandidate(candidate,{orderId,expectedInventoryIds=[
   if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
   state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.lastPersistenceResult=result;return result;
 }
+function commitAppBulkCandidate(candidate,{kind,scope='',changedIds=[]}={}){
+  const fail=(stage,error)=>({ok:false,persisted:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'批量保存失败')});
+  if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取，批量保存已停止。'));
+  const engine=window.JournalModules?.appBulk;
+  const ids=[...new Set(changedIds.map(String))];
+  const rows=(snapshot)=>kind==='inventory'?snapshot.inventory?.items:kind==='subscriptions'?snapshot.subscriptions:kind==='wishlist'?snapshot.wishlists:kind==='wishItem'?snapshot.wishlists?.find(x=>String(x?.id)===String(scope))?.items:null;
+  if(!engine?.FIELD_DEFS[kind]||!ids.length)return fail('invalid_request',new Error('没有可保存的批量记录。'));
+  const records=rows(candidate);
+  const originals=rows(state);
+  if(!Array.isArray(records)||!Array.isArray(originals))return fail('candidate_validation',new Error('记录集合无效。'));
+  const expected=new Map(records.filter(x=>ids.includes(String(x?.id))).map(x=>[String(x.id),JSON.stringify(x)]));
+  if(expected.size!==ids.length||ids.some(id=>!originals.some(x=>String(x.id)===id)))return fail('candidate_validation',new Error('批量记录已变化，请重新选择。'));
+  let payload;
+  try{payload=JSON.stringify(candidate);}catch(error){return fail('JSON.stringify',error);}
+  const commit=window.PersistenceFoundation?.commitCanonical;
+  if(typeof commit!=='function')return fail('quota_safe_commit_unavailable',new Error('安全保存路径不可用。'));
+  const result=commit({storage:localStorage,key:KEY,payload,verifyReadBack:raw=>{
+    // Whole payload equality also protects unrelated modules from partial writes.
+    if(raw!==payload)throw new Error('canonical read-back 与批量候选数据不一致');
+    const persisted=JSON.parse(raw);
+    if(Number(persisted.schemaVersion)!==12)throw new Error('canonical schemaVersion 不匹配');
+    const saved=rows(persisted),map=new Map((saved||[]).map(x=>[String(x.id),JSON.stringify(x)]));
+    for(const [id,record] of expected)if(map.get(id)!==record)throw new Error(`批量回读记录 ${id} 不匹配`);
+    return {schemaVersion:12,kind,changedCount:ids.length};
+  }});
+  if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'批量写入或回读失败'});
+  state=hydrateAppState(candidate);
+  lastVerifiedCanonicalRaw=payload;
+  window.lastPersistenceResult=result;
+  window.__canonicalSaveFailurePending=null;
+  return result;
+}
 function commitOrderBulkCandidate(candidate,{changedIds=[]}={}){
   const failure=(stage,error)=>({ok:false,persisted:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'批量保存失败')});
   if(persistenceSafeMode)return failure('persistence_safe_mode',new Error('数据暂时无法读取，批量修改已取消。'));
@@ -1079,6 +1111,10 @@ const collectionsModule=createCollectionsModule(moduleCtx);
 const subscriptionModule=createSubscriptionModule(moduleCtx);
 const inventoryModule=createInventoryModule(moduleCtx);
 const sellersModule=createSellersModule({...moduleCtx,inventory:inventoryModule});
+window.JournalModules?.appBulk?.bind({
+  getState:()=>state,commit:commitAppBulkCandidate,modal:modalController,
+  render:(kind)=>{if(kind==='inventory')inventoryModule.render();else if(kind==='subscriptions')subscriptionModule.render();else if(kind==='wishlist')collectionsModule.renderWishlists();else if(kind==='wishItem')collectionsModule.renderWishlistItems();}
+});
 const ordersModule=createOrdersModule({...moduleCtx,inventory:inventoryModule,sellers:sellersModule});
 const todayDashboard=createTodayDashboard();
 window.getCurrentWeekPlanSummary=(currentState,date)=>todayDashboard.getCurrentWeekPlanSummary(currentState,date);

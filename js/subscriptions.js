@@ -157,7 +157,7 @@
       el.innerHTML = list.length ? list.map((item) => {
         const next = item.nextOverride || item.nextRenewal || computeNext(item.anchorDate, item.every, item.unit);
         const monthlyCost = monthlyEquivalent(item.amount, item.every, item.unit);
-        return `<div class="tool-card subscription-card">
+        const markup = `<div class="tool-card subscription-card">
           <div class="tool-card-head">
             <div><h3>${esc(item.name)}</h3><div class="amount">${Number(item.amount).toFixed(2)} ${esc(item.currency)}</div></div>
             <span class="status-pill status-${item.status}">${item.status}</span>
@@ -169,7 +169,9 @@
             <button class="danger" onclick="deleteSubscription('${item.id}')">删除</button>
           </div>
         </div>`;
+        return window.JournalModules?.appBulk?.row('subscriptions',item.id,markup)??markup;
       }).join('') : '<div class="entry"><span class="small">还没有 Subscription。</span></div>';
+      window.JournalModules?.appBulk?.toolbar('subscriptions',list.map(item=>item.id));
     }
 
     return {
