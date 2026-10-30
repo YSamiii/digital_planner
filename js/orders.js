@@ -102,8 +102,10 @@
     return advanceRecurringAfterOrderConfirmation(candidate,orderId,options);
   }
   function createOrdersModule(ctx){
-    const {qs,esc,iso,getState,save,commitOrderInventoryCandidate,commitOrderCandidate,commitRecurringLifecycleCandidate,modal,media,inventory,recurrence,sellers,ordersSaveDiagnostics,ordersPersistenceDiagnostics}=ctx;
+    const {qs,esc,iso,getState,save,commitOrderInventoryCandidate,commitOrderCandidate,commitRecurringLifecycleCandidate,modal,media,inventory,recurrence,sellers,ordersSaveDiagnostics,ordersPersistenceDiagnostics,commitOrderBulkCandidate}=ctx;
     let editId='',recurringId='',batchId='',importOrderId='',reversalOrderId='',deleteOrderId='',pendingImageFile=null,previewUrl='',filter='all',orderDraft=null,batchNavigation=null,batchEvents=[],orderSortInitialized=false;
+    let bulkMode=false;
+    const bulkSelected=new Set();
     const ORDER_SORTS=new Set(['new','old','statusUp','statusDown','updatedNew','updatedOld','amountHigh','amountLow','seller']);
     function normalizeOrderSort(value){const aliases={date_desc:'new',date_asc:'old',updated_desc:'updatedNew',updated_asc:'updatedOld',status_asc:'statusUp',status_desc:'statusDown'};const sort=aliases[value]||value;return ORDER_SORTS.has(sort)?sort:'new';}
     function orderViewPreference(){const state=getState();state.settings=state.settings&&typeof state.settings==='object'?state.settings:{};state.settings.ordersView=state.settings.ordersView&&typeof state.settings.ordersView==='object'?state.settings.ordersView:{};state.settings.ordersView.sort=normalizeOrderSort(state.settings.ordersView.sort);return state.settings.ordersView;}
@@ -150,10 +152,91 @@
     function getEffectiveOrderStatus(o){return normalizeOrderStatus(currentStatus(o));}
     function isOrderReadyForPickup(o){return getEffectiveOrderStatus(o)==='ready_for_pickup';}
     function inventorySummary(o){const items=o.items||[],done=items.filter(x=>importedQuantity(x)>=Number(x.quantity||0)&&Number(x.quantity||0)>0).length,reversed=items.some(x=>(x.inventoryImports||[]).some(event=>event.status==='reversed'));if(!items.length||!isCompletedStatus(currentStatus(o)))return '';return `<div class="meta inventory-order-status">${done===items.length?'已全部入库':`已入库 ${done}/${items.length}`}${reversed?' · 含已撤销入库':''}</div>`;}
-    function card(o){const stage=currentStatus(o),effective=getEffectiveOrderStatus(o),b=data().forwardingBatches.find(x=>x.id===o.forwarding?.batchId),service=b?.serviceType||b?.primaryTransportMode||'sea',generatedDraft=isGeneratedRecurringOrder(o)&&o.status==='draft'&&!!o.sourceRecurringId,status=generatedDraft?'待确认':isOrderReadyForPickup(o)?'待取':(o.fulfillmentType==='forwarding'?formatForwardingStage(stage,service):formatOrderStatus(effective));const batchLine=b?`${b.name} · ${formatRouteService(service)}`:'';const completed=isCompletedStatus(effective);return `<article class="tool-card order-card" data-order-id="${esc(o.id)}" onclick="openOrderEditor('${o.id}')"><div class="tool-card-head"><div><h3>${esc(o.sellerNameSnapshot||'未指定卖家')}</h3><div class="meta">${esc((o.items||[]).map(x=>`${x.name} ×${x.quantity}`).join(' · '))}</div></div><span class="status-pill">${esc(status)}</span></div>${generatedDraft?'<div class="meta">自动订购 · 待确认</div>':''}${b?`<div class="meta">${esc(batchLine)}</div>`:''}${inventorySummary(o)}<div class="tool-actions" onclick="event.stopPropagation()">${generatedDraft?`<button type="button" onclick="confirmRecurringOrder('${o.id}')">确认下单</button>`:''}${completed?`<button onclick="openOrderInventoryImport('${o.id}')">加入库存</button>`:''}<button onclick="openOrderEditor('${o.id}')">编辑</button><button onclick="archiveOrder('${o.id}')">${o.archived?'恢复':'归档'}</button><button class="danger" onclick="deleteOrder('${o.id}')">删除</button></div></article>`;}
+    function card(o){const stage=currentStatus(o),effective=getEffectiveOrderStatus(o),b=data().forwardingBatches.find(x=>x.id===o.forwarding?.batchId),service=b?.serviceType||b?.primaryTransportMode||'sea',generatedDraft=isGeneratedRecurringOrder(o)&&o.status==='draft'&&!!o.sourceRecurringId,status=generatedDraft?'待确认':isOrderReadyForPickup(o)?'待取':(o.fulfillmentType==='forwarding'?formatForwardingStage(stage,service):formatOrderStatus(effective));const batchLine=b?`${b.name} · ${formatRouteService(service)}`:'';const completed=isCompletedStatus(effective);const bulkCheck=bulkMode?`<input class="order-bulk-check" type="checkbox" aria-label="选择订单 ${esc(o.sellerNameSnapshot||o.id)}" ${bulkSelected.has(String(o.id))?'checked':''} onclick="event.stopPropagation()" onchange="toggleOrderBulkSelection('${o.id}',this.checked)">`:'';return `<article class="tool-card order-card" data-order-id="${esc(o.id)}" onclick="${bulkMode?`toggleOrderBulkSelection('${o.id}')`:`openOrderEditor('${o.id}')`}"><div class="tool-card-head">${bulkCheck}<div><h3>${esc(o.sellerNameSnapshot||'未指定卖家')}</h3><div class="meta">${esc((o.items||[]).map(x=>`${x.name} ×${x.quantity}`).join(' · '))}</div></div><span class="status-pill">${esc(status)}</span></div>${generatedDraft?'<div class="meta">自动订购 · 待确认</div>':''}${b?`<div class="meta">${esc(batchLine)}</div>`:''}${inventorySummary(o)}${bulkMode?'':`<div class="tool-actions" onclick="event.stopPropagation()">${generatedDraft?`<button type="button" onclick="confirmRecurringOrder('${o.id}')">确认下单</button>`:''}${completed?`<button onclick="openOrderInventoryImport('${o.id}')">加入库存</button>`:''}<button onclick="openOrderEditor('${o.id}')">编辑</button><button onclick="archiveOrder('${o.id}')">${o.archived?'恢复':'归档'}</button><button class="danger" onclick="deleteOrder('${o.id}')">删除</button></div>`}</article>`;}
+    function toggleOrderBulkMode(){bulkMode=!bulkMode;bulkSelected.clear();render();}
+    function toggleOrderBulkSelection(id,checked){
+      if(!bulkMode)return;
+      const canonicalId=String(id);
+      if(checked===undefined?bulkSelected.has(canonicalId):!checked)bulkSelected.delete(canonicalId);
+      else bulkSelected.add(canonicalId);
+      render();
+    }
+    function selectAllVisibleOrders(){
+      if(!bulkMode)return;
+      const rows=selectOrdersForView().rows;
+      const allSelected=rows.length>0&&rows.every(order=>bulkSelected.has(String(order.id)));
+      for(const order of rows){if(allSelected)bulkSelected.delete(String(order.id));else bulkSelected.add(String(order.id));}
+      render();
+    }
+    function renderOrderBulkToolbar(count){
+      const toggle=qs('#orderBulkModeToggle'),toolbar=qs('#orderBulkToolbar');
+      if(toggle){toggle.textContent=bulkMode?'完成多选':'批量修改';toggle.setAttribute('aria-pressed',String(bulkMode));}
+      if(!toolbar)return;
+      toolbar.hidden=!bulkMode;
+      const counter=qs('#orderBulkCounter');if(counter)counter.textContent=`已选 ${bulkSelected.size} / 当前 ${count} 条`;
+      const select=qs('#orderBulkSelectAll');if(select)select.textContent=count>0&&bulkSelected.size===count?'取消全选':'全选当前结果';
+      const edit=qs('#orderBulkEditSelected');if(edit)edit.disabled=bulkSelected.size===0;
+    }
+    function selectedBulkOrders(){const ids=bulkSelected;return (getState().orders?.items||[]).filter(o=>ids.has(String(o.id)));}
+    function closeOrderBulkEditor(){modal.close('orderBulkModal');}
+    function openOrderBulkEditor(){
+      if(!bulkMode||!bulkSelected.size)return;
+      const count=qs('#orderBulkSelectionSummary');if(count)count.textContent=`将对 ${bulkSelected.size} 条选中订单修改同一个字段。未选中的字段全部保留。`;
+      qs('#orderBulkField').value='';
+      updateOrderBulkField();
+      modal.open('orderBulkModal');
+    }
+    function bulkChoiceOptions(values){return values.map(([value,label])=>`<option value="${esc(value)}">${esc(label)}</option>`).join('');}
+    function bulkStatusChoices(){
+      const rows=selectedBulkOrders(),valid=rows.map(order=>STANDARD[order.fulfillmentType]||STANDARD.direct);
+      if(!rows.length)return [];
+      const intersection=valid[0].filter(([key])=>valid.every(list=>list.some(([value])=>value===key)));
+      return intersection;
+    }
+    function updateOrderBulkField(){
+      const field=qs('#orderBulkField')?.value||'',container=qs('#orderBulkValueContainer');if(!container)return;
+      const selected=selectedBulkOrders();
+      let html='';
+      if(field==='status'){
+        html='<label for="orderBulkValue">目标订单状态</label><select id="orderBulkValue" onchange="updateOrderBulkPreview()">'+bulkChoiceOptions(bulkStatusChoices())+'</select><p class="small">只允许非集运订单。自动订购待确认草稿须逐条确认。</p>';
+      }else if(field==='batch'){
+        html='<label for="orderBulkValue">关联到</label><select id="orderBulkValue" onchange="updateOrderBulkPreview()">'+bulkChoiceOptions([['','解除批次关联'],...(getState().orders?.forwardingBatches||[]).map(b=>[String(b.id),String(b.name||b.id)])])+'</select><p class="small">关联到其他批次时保留原订单独立覆盖；解除关联时保留当前物流进度。</p>';
+      }else if(field==='independentStatus'){
+        const all=[...new Set([...window.JournalModules.orderBulk.FORWARDING_STAGES,...selected.map(o=>o.forwarding?.independentStatus).filter(Boolean)])];
+        html='<label for="orderBulkValue">订单独立状态</label><select id="orderBulkValue" onchange="updateOrderBulkPreview()">'+bulkChoiceOptions([['','清除独立状态（恢复继承／默认状态）'],...all.map(v=>[v,labels[v]||v])])+'</select><p class="small">只适用于集运订单；清除后将继承关联批次的状态。</p>';
+      }else if(field==='orderDate'||field==='expectedDate'){
+        html=`<label for="orderBulkValue">${field==='orderDate'?'订单日期':'预计到达日期'}</label><input id="orderBulkValue" type="date" oninput="updateOrderBulkPreview()"><p class="small">${field==='expectedDate'?'留空表示清除预计到达日期。':'自动订购周期订单的订单日期不支持批量调整。'}</p>`;
+      }else if(field==='tagsAdd'||field==='tagsRemove'){
+        html=`<label for="orderBulkValue">${field==='tagsAdd'?'添加':'移除'}标签（逗号分隔）</label><input id="orderBulkValue" placeholder="例如：待核对, 海运" oninput="updateOrderBulkPreview()"><p class="small">${field==='tagsAdd'?'只添加缺少的标签，不覆盖现有标签。':'仅移除指定标签，不影响其他标签。'}</p>`;
+      }else if(field==='archived'){
+        html='<label for="orderBulkValue">归档操作</label><select id="orderBulkValue" onchange="updateOrderBulkPreview()"><option value="true">归档选中订单</option><option value="false">恢复选中订单</option></select>';
+      }
+      container.innerHTML=html;
+      updateOrderBulkPreview();
+    }
+    function buildCurrentBulkPreview(){
+      return window.JournalModules?.orderBulk?.buildOrderBulkCandidate?.(getState(),[...bulkSelected],qs('#orderBulkField')?.value,qs('#orderBulkValue')?.value,{now:Date.now()})||{ok:false,message:'批量修改模块不可用。'};
+    }
+    function updateOrderBulkPreview(){
+      const summary=qs('#orderBulkPreview'),button=qs('#orderBulkApply');if(!summary)return;
+      const preview=buildCurrentBulkPreview();
+      summary.textContent=preview.ok?`预计修改 ${preview.changedCount} 条订单（已选 ${preview.selectedCount} 条），其他字段保持原样。保存会一次性写入，失败则不应用任何修改。`:preview.message||'请先选择修改字段。';
+      summary.classList.toggle('error',!preview.ok);
+      if(button)button.disabled=!preview.ok;
+    }
+    function saveOrderBulkEdit(){
+      const preview=buildCurrentBulkPreview();
+      if(!preview.ok){alert(preview.message||'请选择有效批量修改');updateOrderBulkPreview();return {ok:false,stage:'validation'};}
+      if(!confirm(`确认一次性修改 ${preview.changedCount} 条订单？\n其他字段将保持不变。`))return {ok:false,stage:'cancelled'};
+      const result=commitOrderBulkCandidate(preview.candidate,{changedIds:preview.changedIds});
+      if(!result?.ok){alert(`批量修改没有保存：${result?.message||'请重试'}`);return result;}
+      closeOrderBulkEditor();
+      bulkMode=false;bulkSelected.clear();render();
+      return result;
+    }
     let lastOrderRenderPipeline=null;
     function renderActiveFilterNotice(){const notice=qs('#ordersActiveFilterNotice'),status=qs('#orderStatusFilter')?.value||'',search=qs('#orderSearch')?.value||'';if(!notice)return;const active=filter!=='all'||!!status||!!search;notice.hidden=!active;notice.textContent=!active?'':`当前正在筛选：${status==='ready_for_pickup'?'待取':status||filter}${search?` · “${search}”`:''}`;}
-    function render(){const lifecycle=ensureDueDrafts();syncOrderSort();const filterText={all:'全部',active:'进行中',completed:'已完成',direct:'快递到家',pickup:'自提',forwarding:'集运',recurring:'自动订购',archived:'已归档'};document.querySelectorAll('#orderFilters button').forEach(button=>{const match=(button.getAttribute('onclick')||'').match(/setOrderFilter\('([^']+)'/);if(match)button.textContent=filterText[match[1]]||button.textContent;});const selection=selectOrdersForView(),rows=selection.rows;lastOrderRenderPipeline=selection.pipeline;renderActiveFilterNotice();qs('#orderList').innerHTML=rows.length?rows.map(card).join(''):'<div class="entry"><span class="small">当前筛选下没有订单。</span></div>';qs('#orderMetrics').innerHTML=`<div class="metric"><b>${rows.length}</b><span>Orders</span></div><div class="metric"><b>${data().recurring.length}</b><span>Auto Orders</span></div>`;renderRecurring(lifecycle);renderBatchManagement();renderBatchDetail();const domIds=[...document.querySelectorAll('#orderList .order-card[data-order-id]')].map(card=>String(card.dataset.orderId));ordersSaveDiagnostics?.recordRender(lastOrderRenderPipeline,domIds);}
+    function render(){const lifecycle=ensureDueDrafts();syncOrderSort();const filterText={all:'全部',active:'进行中',completed:'已完成',direct:'快递到家',pickup:'自提',forwarding:'集运',recurring:'自动订购',archived:'已归档'};document.querySelectorAll('#orderFilters button').forEach(button=>{const match=(button.getAttribute('onclick')||'').match(/setOrderFilter\('([^']+)'/);if(match)button.textContent=filterText[match[1]]||button.textContent;});const selection=selectOrdersForView(),rows=selection.rows;const visibleIds=new Set(rows.map(o=>String(o.id)));for(const id of bulkSelected)if(!visibleIds.has(id))bulkSelected.delete(id);lastOrderRenderPipeline=selection.pipeline;renderActiveFilterNotice();qs('#orderList').innerHTML=rows.length?rows.map(card).join(''):'<div class="entry"><span class="small">当前筛选下没有订单。</span></div>';renderOrderBulkToolbar(rows.length);qs('#orderMetrics').innerHTML=`<div class="metric"><b>${rows.length}</b><span>Orders</span></div><div class="metric"><b>${data().recurring.length}</b><span>Auto Orders</span></div>`;renderRecurring(lifecycle);renderBatchManagement();renderBatchDetail();const domIds=[...document.querySelectorAll('#orderList .order-card[data-order-id]')].map(card=>String(card.dataset.orderId));ordersSaveDiagnostics?.recordRender(lastOrderRenderPipeline,domIds);}
     function getEffectiveFulfillmentType(o){return o.fulfillmentType||'direct';}
     function isCompletedStatus(status){return ['delivered','picked_up','cancelled','returned'].includes(status);}
     function isOrderArchived(order){return order?.archived===true||order?.archivedAt!=null;}
@@ -286,7 +369,7 @@
     openBatchManagement=function(){ensureBatchV20Controls();renderBatchManagementV20();modal.open('batchListModal');};
     renderBatchManagement=renderBatchManagementV20;
     setTimeout(layoutOrderHeader,0);
-    return {render,setOrderSort,clearFilters,openOrderEditor,closeOrderEditor,saveOrder,addOrderItem,removeOrderItem,updateOrderTotal,toggleManualTotal,toggleFulfillment,toggleForwardOverride,orderSellerChanged,orderPickupLocationChanged,batchChanged,orderBatchChanged:batchChanged,orderImageChanged,setFilter,archiveOrder,deleteOrder,requestDeleteOrder,closeOrderDeleteOptions,deleteOrderOnly,reverseAndDeleteOrder,openOrderInventoryReversal,closeBatchEditor,saveBatch,refreshBatchRouteFields,openBatchManagement,closeBatchManagement,openBatchDetail,closeBatchDetail,openBatchFromOrder,openRelatedBatchOrder,editBatchFromDetail,relatedOrders,addManagedBatch,editManagedBatch,deleteManagedBatch,restoreForwardingBatch,addBatchTrackingEvent,updateBatchTrackingEvent,removeBatchTrackingEvent,openRecurringEditor,closeRecurringEditor,saveRecurring,previewRecurring,recurringSellerChanged,toggleRecurring,deleteRecurring,openOrderInventoryImport,closeOrderInventoryImport,importOrderToInventory,confirmRecurringOrder,getEffectiveOrderStatus,isOrderReadyForPickup,normalizeOrderStatus,normalizeOrderStatusFilter,getVisibleOrders,selectOrdersForView,getOrdersFilterState:()=>({chipFilter:filter,statusFilter:qs('#orderStatusFilter')?.value||'',search:qs('#orderSearch')?.value||'',sort:qs('#orderSort')?.value||''}),auditOrdersData,refreshOrdersDataAudit,exportOrdersDataAudit,copyTracking:()=>{},openTracking:()=>{},__autoOrderTest:{ensureDueDrafts,confirmRecurringOrder},__inventoryTest:{activeImportEvents,importedQuantity,stageReversal},__forwardingTest:{routeStages,stageLabel,generatedTitle,formatRecurringItem,formatRecurrence,formatOrderStatus,formatForwardingStage,formatFulfillmentType,formatRouteService,serviceLabels,onwardLabels,workflowRank,getEffectiveOrderStatus,isOrderReadyForPickup,normalizeOrderStatus,normalizeOrderStatusFilter},__ordersViewTest:{normalizeOrderSort}};
+    return {render,toggleOrderBulkMode,toggleOrderBulkSelection,selectAllVisibleOrders,openOrderBulkEditor,closeOrderBulkEditor,updateOrderBulkField,updateOrderBulkPreview,saveOrderBulkEdit,setOrderSort,clearFilters,openOrderEditor,closeOrderEditor,saveOrder,addOrderItem,removeOrderItem,updateOrderTotal,toggleManualTotal,toggleFulfillment,toggleForwardOverride,orderSellerChanged,orderPickupLocationChanged,batchChanged,orderBatchChanged:batchChanged,orderImageChanged,setFilter,archiveOrder,deleteOrder,requestDeleteOrder,closeOrderDeleteOptions,deleteOrderOnly,reverseAndDeleteOrder,openOrderInventoryReversal,closeBatchEditor,saveBatch,refreshBatchRouteFields,openBatchManagement,closeBatchManagement,openBatchDetail,closeBatchDetail,openBatchFromOrder,openRelatedBatchOrder,editBatchFromDetail,relatedOrders,addManagedBatch,editManagedBatch,deleteManagedBatch,restoreForwardingBatch,addBatchTrackingEvent,updateBatchTrackingEvent,removeBatchTrackingEvent,openRecurringEditor,closeRecurringEditor,saveRecurring,previewRecurring,recurringSellerChanged,toggleRecurring,deleteRecurring,openOrderInventoryImport,closeOrderInventoryImport,importOrderToInventory,confirmRecurringOrder,getEffectiveOrderStatus,isOrderReadyForPickup,normalizeOrderStatus,normalizeOrderStatusFilter,getVisibleOrders,selectOrdersForView,getOrdersFilterState:()=>({chipFilter:filter,statusFilter:qs('#orderStatusFilter')?.value||'',search:qs('#orderSearch')?.value||'',sort:qs('#orderSort')?.value||''}),auditOrdersData,refreshOrdersDataAudit,exportOrdersDataAudit,copyTracking:()=>{},openTracking:()=>{},__autoOrderTest:{ensureDueDrafts,confirmRecurringOrder},__inventoryTest:{activeImportEvents,importedQuantity,stageReversal},__forwardingTest:{routeStages,stageLabel,generatedTitle,formatRecurringItem,formatRecurrence,formatOrderStatus,formatForwardingStage,formatFulfillmentType,formatRouteService,serviceLabels,onwardLabels,workflowRank,getEffectiveOrderStatus,isOrderReadyForPickup,normalizeOrderStatus,normalizeOrderStatusFilter},__ordersViewTest:{normalizeOrderSort}};
   }
   window.JournalModules=window.JournalModules||{};window.JournalModules.createOrdersModule=createOrdersModule;window.JournalModules.sellerUsage={getSellerUsageStats,sortSellersByUsage,stableOrderUsageTime};window.JournalModules.autoOrderLifecycle={isGeneratedRecurringOrder,isDeletedRecurringOrder,hasActiveGeneratedOrderForCycle,classifyRecurringCycleOrders,normalizedRecurringMode,recoverRecurringPlanLifecycle,MAX_RECOVERY_STEPS,buildRecurringGeneratedOrder,advanceRecurringAfterOrderConfirmation,applyGeneratedOrderSaveTransition};
 })();

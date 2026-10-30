@@ -1,5 +1,5 @@
-window.JOURNAL_BUILD='v0.23.8-forwarding-status-persistence-production-20261028';
-document.documentElement.dataset.runtimeBuild='v0.23.8-forwarding-status-persistence-production-20261028';
+window.JOURNAL_BUILD='v0.23.9-order-bulk-edit-production-20261030';
+document.documentElement.dataset.runtimeBuild='v0.23.9-order-bulk-edit-production-20261030';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createLegacyJournalPayloadStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter, createLegacyJournalPayloadManager, analyzeLegacyJournalFootprint} = window.JournalModules || {};
 const KEY='journal-planner-v091';
 const APP_VERSION='0.23.8';
@@ -574,6 +574,31 @@ function commitOrderInventoryCandidate(candidate,{orderId,expectedInventoryIds=[
   if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
   state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.lastPersistenceResult=result;return result;
 }
+function commitOrderBulkCandidate(candidate,{changedIds=[]}={}){
+  const failure=(stage,error)=>({ok:false,persisted:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'批量保存失败')});
+  if(persistenceSafeMode)return failure('persistence_safe_mode',new Error('数据暂时无法读取，批量修改已取消。'));
+  const ids=[...new Set(changedIds.map(String))];
+  if(!ids.length)return failure('empty_change',new Error('没有需要保存的订单。'));
+  const expected=new Map((candidate.orders?.items||[]).filter(o=>ids.includes(String(o.id))).map(o=>[String(o.id),JSON.stringify(o)]));
+  if(expected.size!==ids.length)return failure('candidate_validation',new Error('批量候选订单不完整。'));
+  let payload;
+  try{payload=JSON.stringify(candidate);}catch(error){return failure('JSON.stringify',error);}
+  const commit=window.PersistenceFoundation?.commitCanonical;
+  if(typeof commit!=='function')return failure('quota_safe_commit_unavailable',new Error('统一安全保存路径不可用。'));
+  const result=commit({storage:localStorage,key:KEY,payload,verifyReadBack:raw=>{
+    const persisted=JSON.parse(raw);
+    if(Number(persisted.schemaVersion)!==12)throw new Error('批量回读 schemaVersion 不匹配');
+    const persistedOrders=new Map((persisted.orders?.items||[]).map(o=>[String(o.id),JSON.stringify(o)]));
+    for(const [id,record] of expected)if(persistedOrders.get(id)!==record)throw new Error(`批量回读订单 ${id} 不匹配`);
+    return {schemaVersion:12,changedOrders:ids.length};
+  }});
+  if(!result?.ok)return failure(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'批量保存失败'});
+  state=hydrateAppState(candidate);
+  lastVerifiedCanonicalRaw=payload;
+  window.lastPersistenceResult=result;
+  window.__canonicalSaveFailurePending=null;
+  return result;
+}
 function commitOrderCandidate(candidate,{orderId,expectedForwarding,expectedOrder,expectedRecurring}={}){
   const fail=(stage,error)=>({ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false});
   if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取。为保护现有记录，App 已暂停保存。'));
@@ -1047,7 +1072,7 @@ const diagnosticStorageKeys=new Set([
 window.PersistenceFoundation?.registerQuotaSafeCleanup?.(()=>{
   return {safe:true,removeKeys:[...diagnosticStorageKeys]};
 },{safeKey:key=>diagnosticStorageKeys.has(String(key))});
-const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,commitTwelveWeekCandidate,commitOrderInventoryCandidate,commitOrderCandidate,commitRecurringLifecycleCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
+const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,commitTwelveWeekCandidate,commitOrderInventoryCandidate,commitOrderCandidate,commitOrderBulkCandidate,commitRecurringLifecycleCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
 const productivityModule=createProductivityModule(moduleCtx);
 const noSpendModule=createNoSpendModule({...moduleCtx,commitNoSpendCandidate});
 const collectionsModule=createCollectionsModule(moduleCtx);
@@ -1276,7 +1301,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0238forwardingstatusprod-20261028').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v=0239orderbulkprod-20261030').catch(err=>console.warn('SW registration failed',err));
   });
 }
 
