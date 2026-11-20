@@ -1,9 +1,10 @@
-window.JOURNAL_BUILD='v0.24.2-challenge-daily-tasks-production-20261120';
-document.documentElement.dataset.runtimeBuild='v0.24.2-challenge-daily-tasks-production-20261120';
+const RELEASE_BUILD_INFO=window.JOURNAL_BUILD_INFO;
+if(!RELEASE_BUILD_INFO)throw new Error('Missing shared journal build info');
+window.applyJournalBuildMarker();
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createLegacyJournalPayloadStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter, createLegacyJournalPayloadManager, analyzeLegacyJournalFootprint} = window.JournalModules || {};
 const KEY='journal-planner-v091';
-const APP_VERSION='0.24.2';
-const BUILD_LABEL='Challenge Daily Tasks Production';
+const APP_VERSION=RELEASE_BUILD_INFO.appVersion;
+const BUILD_LABEL=RELEASE_BUILD_INFO.label;
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 const INVENTORY_SORT_MODES=['added','updated','created','az','za','quantityAsc','quantityDesc','expiry'];
@@ -1356,7 +1357,7 @@ else boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js?v=0239orderbulkprod-20261030').catch(err=>console.warn('SW registration failed',err));
+    navigator.serviceWorker.register('./sw.js?v='+encodeURIComponent(RELEASE_BUILD_INFO.assetVersion)).catch(err=>console.warn('SW registration failed',err));
   });
 }
 

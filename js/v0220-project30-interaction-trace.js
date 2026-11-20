@@ -1,7 +1,7 @@
 (function(){
   'use strict';
-  const BUILD='0.22.0-daily-question-device-mapping-diagnostic-r2-final-qa',KEY='journal-planner-project30-interaction-trace-v0220r4';
-  window.JOURNAL_BUILD=BUILD;document.documentElement.dataset.runtimeBuild=BUILD;
+  const KEY='journal-planner-project30-interaction-trace-v0220r4';
+  window.applyJournalBuildMarker();
   let trace=(()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{"events":[],"generation":0}');}catch(_){return {events:[],generation:0};}})(),lastChecked=new Map(),adminActions={clear:0,export:0},suppressExport=false;
   const clone=value=>JSON.parse(JSON.stringify(value));
   const nodeInfo=node=>node?{tag:node.tagName||'',id:node.id||'',className:String(node.className||''),dataset:{...(node.dataset||{})}}:null;

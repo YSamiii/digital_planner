@@ -2,9 +2,7 @@
    This layer uses the established canonical state + IndexedDB snapshot store. */
 (function(){
   'use strict';
-  const BUILD='0.21.0-stable-baseline';
-  document.documentElement.dataset.runtimeBuild=BUILD;
-  window.JOURNAL_BUILD=BUILD;
+  window.applyJournalBuildMarker();
   const $=selector=>document.querySelector(selector);
   const esc=value=>String(value??'').replace(/[&<>\"]/g,char=>({ '&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;' })[char]);
   const clone=value=>JSON.parse(JSON.stringify(value));

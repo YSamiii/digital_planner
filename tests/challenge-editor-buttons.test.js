@@ -64,6 +64,8 @@ test('Challenge task editor exposes all inline button callbacks', () => {
 
   window.moveChallengeChecklistRule({ closest: () => rows[1] }, -1);
   assert.notEqual(rows[0], first, 'move up changes row order');
+  window.moveChallengeChecklistRule({ closest: () => rows[0] }, 1);
+  assert.equal(rows[0], first, 'move down changes row order');
   window.removeChallengeChecklistRule({ closest: () => rows[0] });
   assert.equal(rows.length, 1, 'remove task deletes the selected row');
 });
