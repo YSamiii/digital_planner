@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='v0.24.1-challenge-weekly-schedule-production-20261120';
-document.documentElement.dataset.runtimeBuild='v0.24.1-challenge-weekly-schedule-production-20261120';
+window.JOURNAL_BUILD='v0.24.2-challenge-daily-tasks-production-20261120';
+document.documentElement.dataset.runtimeBuild='v0.24.2-challenge-daily-tasks-production-20261120';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createLegacyJournalPayloadStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter, createLegacyJournalPayloadManager, analyzeLegacyJournalFootprint} = window.JournalModules || {};
 const KEY='journal-planner-v091';
-const APP_VERSION='0.24.1';
-const BUILD_LABEL='Challenge Weekly Schedule Production';
+const APP_VERSION='0.24.2';
+const BUILD_LABEL='Challenge Daily Tasks Production';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 const INVENTORY_SORT_MODES=['added','updated','created','az','za','quantityAsc','quantityDesc','expiry'];

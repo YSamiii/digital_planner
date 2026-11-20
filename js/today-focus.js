@@ -128,7 +128,10 @@
         const incomplete = schedule ? schedule.shouldPromptToday(record,today) : projection.mode === 'score'
           ? Object.keys(record.dailyLogs?.[today] || {}).length === 0
           : !(record.completedDates || []).includes(today);
-        return incomplete ? [item({ ...base, type: 'challenge_focus_incomplete', priority: 2 })] : [];
+        if(!incomplete)return [];
+        const taskProgress=schedule?.isMultiTask?.(record)?schedule.checklistProgress(record,today):null;
+        const subtitle=taskProgress?`今日任务已完成 ${taskProgress.done}/${taskProgress.total} 项`:'';
+        return [item({ ...base, type: 'challenge_focus_incomplete', priority: 2, subtitle })];
       }
       if (projection.kind === 'twelve_week') return [item({ ...base, type: 'challenge_twelve_week', priority: 3 })];
       return [];
@@ -172,6 +175,7 @@
       return pieces.filter(Boolean).join(' · ');
     }
     if (row.subtitle === 'notLoggedToday') return [progress ? i18n.t(progress.key, progress) : '', i18n.t('notLoggedToday')].filter(Boolean).join(' · ');
+    if (progress && row.type === 'challenge_focus_incomplete') return [i18n.t(progress.key, progress), row.subtitle].filter(Boolean).join(' · ');
     if (progress) return i18n.t(progress.key, progress);
     if (row.type === 'subscription_soon') {
       const when = row.meta.daysAway === 1 ? i18n.t('tomorrow') : i18n.t('inDays', { days: row.meta.daysAway });
