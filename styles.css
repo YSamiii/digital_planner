@@ -247,3 +247,11 @@ input[type="date"]{display:block;width:100%;min-width:0;max-width:100%;box-sizin
 .app-bulk-pick input { width:20px; height:20px; flex:none; accent-color:var(--accent,#496c65); }
 .app-bulk-row:has(.app-bulk-pick input:checked) { outline:1px solid var(--accent,#496c65); border-radius:12px; }
 #appBulkValueHost input, #appBulkValueHost select { width:100%; min-height:42px; }
+
+/* Challenge frequency: compact iPhone-friendly weekday choices. */
+.challenge-frequency-section{margin:14px 0;padding:12px;border:1px solid var(--line,#ddd);border-radius:12px}
+.challenge-frequency-section>label{display:block;margin-bottom:6px;font-weight:600}
+.challenge-frequency-section select,.challenge-frequency-section input[type=number]{width:100%}
+.challenge-weekday-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin:8px 0}
+.challenge-weekday-grid label{display:flex;gap:6px;align-items:center;padding:8px 5px;border:1px solid var(--line,#ddd);border-radius:8px;white-space:nowrap}
+.challenge-weekday-grid input{width:auto;margin:0}

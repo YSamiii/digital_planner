@@ -124,7 +124,8 @@
         return [];
       }
       if (projection.kind === 'focus') {
-        const incomplete = projection.mode === 'score'
+        const schedule = window.JournalModules?.challengeSchedule;
+        const incomplete = schedule ? schedule.shouldPromptToday(record,today) : projection.mode === 'score'
           ? Object.keys(record.dailyLogs?.[today] || {}).length === 0
           : !(record.completedDates || []).includes(today);
         return incomplete ? [item({ ...base, type: 'challenge_focus_incomplete', priority: 2 })] : [];

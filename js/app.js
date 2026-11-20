@@ -1,9 +1,9 @@
-window.JOURNAL_BUILD='v0.24.0-app-wide-bulk-production-20261030';
-document.documentElement.dataset.runtimeBuild='v0.24.0-app-wide-bulk-production-20261030';
+window.JOURNAL_BUILD='v0.24.1-challenge-weekly-schedule-production-20261120';
+document.documentElement.dataset.runtimeBuild='v0.24.1-challenge-weekly-schedule-production-20261120';
 const {createProductivityModule, createNoSpendModule, createCollectionsModule, createSubscriptionModule, createMediaStore, createSnapshotStore, createLegacyJournalPayloadStore, createInventoryModule, createRecurrenceHelper, createSellersModule, createOrdersModule, createTodayDashboard, createOneLineImport, createTimelineFilter, createFiveYearJournal, createHistoricalDualImporter, createLegacyJournalPayloadManager, analyzeLegacyJournalFootprint} = window.JournalModules || {};
 const KEY='journal-planner-v091';
-const APP_VERSION='0.24.0';
-const BUILD_LABEL='App-Wide Bulk Edit Production';
+const APP_VERSION='0.24.1';
+const BUILD_LABEL='Challenge Weekly Schedule Production';
 window.APP_VERSION=APP_VERSION;
 const LEGACY_KEYS=['journal-planner-v090','journal-planner-v081','journal-planner-v052','journal-planner-v070','journal-planner-v051','journal-planner-v03','journal-planner-v031','journal-planner-v04','journal-planner-v05'];
 const INVENTORY_SORT_MODES=['added','updated','created','az','za','quantityAsc','quantityDesc','expiry'];
@@ -679,6 +679,25 @@ function commitRecurringLifecycleCandidate(candidate,{recurringId,expectedLastOr
   if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'自动订购恢复保存失败'});
   state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;return result;
 }
+function commitChallengeCandidate(candidate,{challengeId,expectAbsent=false}={}){
+  const fail=(stage,error)=>{const result={ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'Challenge 保存失败'),persisted:false};window.lastPersistenceResult=result;return result;};
+  if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('保护模式下不能保存 Challenge。'));
+  const expected=(candidate.challenges||[]).find(item=>String(item?.id)===String(challengeId));
+  if((!expected&&!expectAbsent)||(expected&&expectAbsent))return fail('invalid_candidate',new Error('Challenge 预期状态不一致。'));
+  let payload='';try{payload=JSON.stringify(candidate);}catch(error){return fail('JSON.stringify',error);}
+  const commit=window.PersistenceFoundation?.commitCanonical;
+  if(typeof commit!=='function')return fail('quota_safe_commit_unavailable',new Error('统一安全保存路径不可用。'));
+  const result=commit({storage:localStorage,key:KEY,payload,verifyReadBack:raw=>{
+    const persisted=JSON.parse(raw),found=(persisted.challenges||[]).find(item=>String(item?.id)===String(challengeId));
+    if(Number(persisted.schemaVersion)!==12)throw new Error('canonical read-back schemaVersion 不匹配');
+    if(expectAbsent){if(found)throw new Error('canonical read-back Challenge 删除失败');}
+    else if(!found||JSON.stringify(found)!==JSON.stringify(expected))throw new Error('canonical read-back Challenge 内容不匹配');
+    return {schemaVersion:12,challengeId:String(challengeId),deleted:!!expectAbsent};
+  }});
+  if(!result?.ok)return fail(result?.stage||'commit',{name:result?.errorName||'Error',message:result?.message||'保存失败'});
+  state=hydrateAppState(candidate);lastVerifiedCanonicalRaw=payload;window.__canonicalSaveFailurePending=null;window.lastPersistenceResult=result;
+  return result;
+}
 function commitNoSpendCandidate(candidate,{challengeId,date,expectedStatus}={}){
   const fail=(stage,error)=>({ok:false,stage,errorName:error?.name||'Error',message:error?.message||String(error||'保存失败'),persisted:false});
   if(persistenceSafeMode)return fail('persistence_safe_mode',new Error('数据暂时无法读取。为保护现有记录，App 已暂停保存。'));
@@ -1104,7 +1123,7 @@ const diagnosticStorageKeys=new Set([
 window.PersistenceFoundation?.registerQuotaSafeCleanup?.(()=>{
   return {safe:true,removeKeys:[...diagnosticStorageKeys]};
 },{safeKey:key=>diagnosticStorageKeys.has(String(key))});
-const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,commitTwelveWeekCandidate,commitOrderInventoryCandidate,commitOrderCandidate,commitOrderBulkCandidate,commitRecurringLifecycleCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
+const moduleCtx={qs,qsa,esc,iso,getState:()=>state,save,commitInventoryCandidate,commitChallengeCandidate,commitTwelveWeekCandidate,commitOrderInventoryCandidate,commitOrderCandidate,commitOrderBulkCandidate,commitRecurringLifecycleCandidate,modal:modalController,media:mediaStore,recurrence,inventoryI18n,inventoryDiagnostics:inventoryEditDiagnostics,ordersSaveDiagnostics,ordersPersistenceDiagnostics};
 const productivityModule=createProductivityModule(moduleCtx);
 const noSpendModule=createNoSpendModule({...moduleCtx,commitNoSpendCandidate});
 const collectionsModule=createCollectionsModule(moduleCtx);

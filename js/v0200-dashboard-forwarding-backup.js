@@ -229,6 +229,9 @@
     const item=projection.record,day=`Day ${projection.currentDay} / ${projection.duration||'—'}`;
     if(projection.kind==='no_spend'){const month=String(today).slice(0,7),logs=(item.logs||[]),noSpend=logs.filter(log=>String(log.date||'').startsWith(month)&&!log.spent).length,todayLog=logs.find(log=>log.date===today);return {meta:`${day} · 本月 ${noSpend} 个 No Spend Day · 今日：${todayLog?(todayLog.spent?'已消费':'未消费'):'未记录'}`,empty:false,attention:todayLog?.spent===true};}
     if(projection.kind==='twelve_week')return {meta:`Week ${projection.currentDay} / 12`,empty:false,attention:false};
+    const schedule=window.JournalModules?.challengeSchedule;
+    const plan=schedule?.at(item,today),week=plan&&schedule.week(item,today);
+    if(plan?.mode!=='daily'&&week){const label=week.reached?'本周达标':week.todayScheduled?'待完成':'今日休息';return {meta:`${day} · 本周 ${Math.min(week.done,week.target)}/${week.target} · ${label}`,empty:false,attention:schedule.shouldPromptToday(item,today)};}
     if(projection.mode==='score'){const log=item.dailyLogs?.[today]||{},rules=item.scoreRules||[],required=rules.filter(rule=>rule.kind==='required'&&log[rule.id]).reduce((sum,rule)=>sum+Number(rule.score||0),0),bonus=Math.max(0,...rules.filter(rule=>rule.kind==='bonus'&&log[rule.id]).filter(rule=>log[rule.id]).map(rule=>Number(rule.score||0)));return {meta:`${day} · 今日 ${required+bonus} / 100`,empty:false,attention:!Object.keys(log).length};}
     const rules=item.checklistRules||item.rules||[],done=(item.completedDates||[]).includes(today)?rules.length:0;return {meta:`${day} · 今日 ${done} / ${rules.length}`,empty:false,attention:!done};
   }
